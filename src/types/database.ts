@@ -87,6 +87,8 @@ export interface Contract {
   contract_number: string;
   field_values: Record<string, unknown>;
   signed: boolean;
+  signed_at: string | null;
+  signed_ip: string | null;
   drive_file_id: string | null;
   drive_link: string | null;
   generated_at: string;
@@ -200,5 +202,12 @@ export interface TrackingPayload {
     attachment_kind: AttachmentKind | null;
     attachment_drive_link: string | null;
     changed_at: string;
+  }>;
+  contracts: Array<{
+    id: string;
+    contract_number: string;
+    signed: boolean;
+    signed_at: string | null;
+    generated_at: string;
   }>;
 }

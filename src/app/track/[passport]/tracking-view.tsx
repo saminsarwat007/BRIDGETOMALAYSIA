@@ -11,6 +11,9 @@ import {
   ExternalLink,
   ChevronDown,
   Sparkles,
+  Download,
+  PenTool,
+  Loader2,
 } from "lucide-react";
 import { ReceiptUploadSheet } from "./receipt-upload-sheet";
 import { DocumentUploadSheet } from "./document-upload-sheet";
@@ -56,6 +59,8 @@ export function TrackingView({ payload, passport, documents }: Props) {
   }, [stage_history]);
 
   const firstName = student.full_name.split(" ")[0];
+
+  const contracts = payload.contracts ?? [];
 
   const [openInvoiceId, setOpenInvoiceId] = useState<string | null>(null);
   const openInvoice = invoices.find((i) => i.id === openInvoiceId) ?? null;
@@ -223,19 +228,48 @@ export function TrackingView({ payload, passport, documents }: Props) {
                     <div className="font-display text-xl text-brand-ink">
                       {formatCurrency(inv.total_amount, inv.currency)}
                     </div>
-                    {!isPaid && student.upload_enabled && (
-                      <button
-                        onClick={() => setOpenInvoiceId(inv.id)}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-brand-ink px-4 py-2 text-xs font-semibold text-brand-paper hover:bg-brand-bridge transition"
+                    <div className="flex flex-col gap-2 items-end">
+                      <a
+                        href={`/api/public/invoice-pdf?passport=${encodeURIComponent(passport)}&invoice_id=${inv.id}`}
+                        target="_blank"
+                        rel="noopener"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-brand-stone px-3 py-1.5 text-xs font-semibold text-brand-ink hover:bg-brand-cream transition"
                       >
-                        <Upload className="h-3.5 w-3.5" />
-                        {isPartial ? "Upload another receipt" : "Upload receipt"}
-                      </button>
-                    )}
+                        <Download className="h-3.5 w-3.5" /> Download PDF
+                      </a>
+                      {!isPaid && student.upload_enabled && (
+                        <button
+                          onClick={() => setOpenInvoiceId(inv.id)}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-brand-ink px-4 py-2 text-xs font-semibold text-brand-paper hover:bg-brand-bridge transition"
+                        >
+                          <Upload className="h-3.5 w-3.5" />
+                          {isPartial ? "Upload another receipt" : "Upload receipt"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </article>
               );
             })}
+          </div>
+        </section>
+      )}
+
+      {/* Contracts */}
+      {contracts.length > 0 && (
+        <section className="mt-16">
+          <div className="flex items-baseline justify-between mb-6">
+            <h2 className="font-display text-2xl text-brand-ink">Your contracts</h2>
+          </div>
+
+          <div className="space-y-3">
+            {contracts.map((c) => (
+              <ContractCard
+                key={c.id}
+                contract={c}
+                passport={passport}
+              />
+            ))}
           </div>
         </section>
       )}
@@ -413,6 +447,101 @@ function StageRow({ index, label, state, history }: StageRowProps) {
         </div>
       )}
     </li>
+  );
+}
+
+function ContractCard({
+  contract,
+  passport,
+}: {
+  contract: TrackingPayload["contracts"][number];
+  passport: string;
+}) {
+  const [signing, setSigning] = useState(false);
+  const [signed, setSigned] = useState(contract.signed);
+  const [signedAt, setSignedAt] = useState(contract.signed_at);
+
+  async function handleSign() {
+    if (signed) return;
+    if (!confirm("By clicking OK, you agree to the terms in this contract. This is a legally binding digital signature.")) return;
+
+    setSigning(true);
+    try {
+      const res = await fetch("/api/public/sign-contract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ passport, contract_id: contract.id }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setSigned(true);
+        setSignedAt(data.signed_at ?? new Date().toISOString());
+      } else {
+        alert(data.error ?? "Couldn't sign contract");
+      }
+    } catch {
+      alert("Network error — please try again");
+    } finally {
+      setSigning(false);
+    }
+  }
+
+  return (
+    <article className="card-paper p-5">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="font-mono text-xs text-brand-muted">{contract.contract_number}</span>
+            {signed ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
+                <Check className="h-3 w-3" /> Signed
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 text-amber-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
+                <Clock className="h-3 w-3" /> Awaiting signature
+              </span>
+            )}
+          </div>
+          <div className="mt-1.5 font-medium text-brand-ink">Service agreement</div>
+          <p className="text-xs text-brand-muted mt-0.5">
+            Generated {formatDate(contract.generated_at)}
+            {signedAt && ` · Signed ${formatDate(signedAt)}`}
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2 items-end shrink-0">
+          <a
+            href={`/api/public/contract-pdf?passport=${encodeURIComponent(passport)}&contract_id=${contract.id}`}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex items-center gap-1.5 rounded-full border border-brand-stone px-3 py-1.5 text-xs font-semibold text-brand-ink hover:bg-brand-cream transition"
+          >
+            <Download className="h-3.5 w-3.5" /> Download PDF
+          </a>
+          {!signed && (
+            <button
+              onClick={handleSign}
+              disabled={signing}
+              className="inline-flex items-center gap-1.5 rounded-full bg-brand-ink px-4 py-2 text-xs font-semibold text-brand-paper hover:bg-brand-bridge transition disabled:opacity-50"
+            >
+              {signing ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Signing…</>
+              ) : (
+                <><PenTool className="h-3.5 w-3.5" /> Sign contract</>
+              )}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {!signed && (
+        <p className="mt-3 text-xs text-brand-muted leading-relaxed">
+          Please review the contract PDF carefully before signing. By clicking "Sign contract", you
+          agree to all terms and conditions. Your IP address and timestamp will be recorded as a
+          digital signature.
+        </p>
+      )}
+    </article>
   );
 }
 
