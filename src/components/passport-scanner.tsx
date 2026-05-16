@@ -37,7 +37,7 @@ export function PassportScanner({ onExtracted }: Props) {
         const fd = new FormData();
         fd.append("file", file);
 
-        const res = await fetch("/api/extract-passport", {
+        const res = await fetch("/api/public/extract-passport", {
           method: "POST",
           body: fd,
         });
