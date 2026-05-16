@@ -1,0 +1,123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light theme — warm cream paper, deep coffee ink */
+    --background: 34 47% 96%;        /* paper */
+    --foreground: 20 28% 9%;          /* ink */
+
+    --card: 38 50% 98%;
+    --card-foreground: 20 28% 9%;
+
+    --popover: 38 50% 98%;
+    --popover-foreground: 20 28% 9%;
+
+    --primary: 26 50% 36%;            /* bridge brown */
+    --primary-foreground: 38 50% 97%;
+
+    --secondary: 40 24% 89%;          /* warm stone */
+    --secondary-foreground: 20 28% 14%;
+
+    --muted: 40 18% 88%;
+    --muted-foreground: 25 14% 36%;
+
+    --accent: 39 64% 47%;             /* gold */
+    --accent-foreground: 20 28% 9%;
+
+    --destructive: 0 72% 41%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 36 24% 80%;
+    --input: 36 24% 80%;
+    --ring: 39 64% 47%;
+
+    --radius: 0.5rem;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    background-image:
+      radial-gradient(at 12% 8%, rgba(200, 147, 43, 0.05) 0px, transparent 60%),
+      radial-gradient(at 88% 92%, rgba(139, 90, 43, 0.04) 0px, transparent 55%);
+    background-attachment: fixed;
+  }
+
+  /* Distinctive display font for headings and brand moments */
+  h1, h2, h3, .display {
+    font-family: var(--font-fraunces), Georgia, "Times New Roman", serif;
+    font-feature-settings: "ss01", "ss02";
+    letter-spacing: -0.01em;
+  }
+
+  /* Subtle paper grain on hero areas (opt-in via .paper) */
+  .paper {
+    background-color: #FBF7EF;
+    background-image:
+      radial-gradient(rgba(31, 20, 16, 0.025) 1px, transparent 1px),
+      radial-gradient(rgba(31, 20, 16, 0.025) 1px, transparent 1px);
+    background-size: 32px 32px;
+    background-position: 0 0, 16px 16px;
+  }
+
+  .grain {
+    position: relative;
+  }
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.12 0 0 0 0 0.08 0 0 0 0 0.06 0 0 0 0.10 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    opacity: 0.35;
+    pointer-events: none;
+    mix-blend-mode: multiply;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(139, 90, 43, 0.25);
+    border-radius: 999px;
+    border: 2px solid #FBF7EF;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(139, 90, 43, 0.45); }
+}
+
+@layer components {
+  .btn-gold {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-brand-bridge px-5 py-2.5 text-sm font-semibold text-brand-paper shadow-[0_2px_0_0_rgba(31,20,16,0.08),0_8px_24px_-12px_rgba(139,90,43,0.6)] transition-all hover:bg-brand-ink hover:translate-y-[-1px] focus:outline-none focus:ring-2 focus:ring-brand-gold focus:ring-offset-2 focus:ring-offset-brand-paper disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-brand-ink hover:bg-brand-stone/40 transition;
+  }
+  .label-eyebrow {
+    @apply text-[11px] font-medium uppercase tracking-[0.18em] text-brand-muted;
+  }
+  .card-paper {
+    @apply rounded-xl border border-brand-stone bg-brand-cream/60 backdrop-blur-sm shadow-[0_1px_0_0_rgba(31,20,16,0.04)];
+  }
+  .input-paper {
+    @apply w-full rounded-md border border-brand-stone bg-brand-paper px-3.5 py-2.5 text-sm text-brand-ink placeholder:text-brand-muted/70 focus:outline-none focus:border-brand-gold focus:ring-2 focus:ring-brand-gold/30 transition;
+  }
+  /* Timeline dot states */
+  .node-completed {
+    @apply bg-brand-bridge text-brand-paper border-brand-bridge;
+  }
+  .node-current {
+    @apply bg-brand-gold text-brand-ink border-brand-gold animate-pulse-glow;
+  }
+  .node-future {
+    @apply bg-brand-paper text-brand-muted border-brand-stone border-dashed;
+  }
+}
