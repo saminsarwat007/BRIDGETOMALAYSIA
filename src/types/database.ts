@@ -67,6 +67,7 @@ export interface Student {
   referred_by_name: string | null;
   referred_by_phone: string | null;
   upload_enabled: boolean;
+  whatsapp_group_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -183,6 +184,7 @@ export interface TrackingPayload {
     campus: string | null;
     intake: string | null;
     upload_enabled: boolean;
+    whatsapp_group_url: string | null;
   };
   invoices: Array<{
     id: string;
@@ -193,6 +195,7 @@ export interface TrackingPayload {
     status: InvoiceStatus;
     due_date: string | null;
     created_at: string;
+    total_paid: number;
   }>;
   stage_history: Array<{
     id: string;

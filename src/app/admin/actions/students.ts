@@ -17,6 +17,7 @@ const StudentSchema = z.object({
   subject_1: z.string().optional().nullable(),
   subject_2: z.string().optional().nullable(),
   drive_folder_url: z.string().url().optional().or(z.literal("")).nullable(),
+  whatsapp_group_url: z.string().url().optional().or(z.literal("")).nullable(),
   contract_required: z.boolean().optional(),
   notes: z.string().optional().nullable(),
   referred_by_name: z.string().optional().nullable(),

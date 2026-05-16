@@ -121,6 +121,13 @@ export function StudentForm({ mode, student }: Props) {
           help="Used to store generated invoices, contracts, and student-uploaded receipts."
           error={fe("drive_folder_url")}
         />
+        <Field
+          label="WhatsApp group URL"
+          name="whatsapp_group_url"
+          defaultValue={student?.whatsapp_group_url ?? ""}
+          placeholder="https://chat.whatsapp.com/…"
+          help="Student's dedicated WhatsApp group. Shown on their tracking page."
+        />
         <div className="flex flex-wrap gap-6">
           <Toggle
             name="contract_required"

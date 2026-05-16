@@ -223,6 +223,16 @@ export function TrackingView({ payload, passport, documents }: Props) {
                         Due {formatDate(inv.due_date)}
                       </div>
                     )}
+                    {inv.status === "overpaid" && inv.total_paid > inv.total_amount && (
+                      <div className="text-xs text-emerald-700 font-medium mt-1">
+                        Overpaid by {formatCurrency(inv.total_paid - inv.total_amount, inv.currency)} — will be credited to next invoice
+                      </div>
+                    )}
+                    {inv.status === "partially_paid" && inv.total_paid > 0 && (
+                      <div className="text-xs text-amber-700 mt-1">
+                        {formatCurrency(inv.total_paid, inv.currency)} paid · {formatCurrency(inv.total_amount - inv.total_paid, inv.currency)} remaining
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-3 sm:flex-col sm:items-end">
                     <div className="font-display text-xl text-brand-ink">
@@ -281,13 +291,17 @@ export function TrackingView({ payload, passport, documents }: Props) {
         <div>
           <div className="font-semibold text-brand-ink">Need to talk to us?</div>
           <p className="text-sm text-brand-ink/70 mt-1">
-            We're a WhatsApp message away. Mention your passport number so we can pull up your file faster.
+            {student.whatsapp_group_url
+              ? "Join your dedicated WhatsApp group to chat directly with our team."
+              : "We're a WhatsApp message away. Mention your passport number so we can pull up your file faster."}
           </p>
           <a
-            href="https://wa.me/8801749913165"
+            href={student.whatsapp_group_url ?? "https://wa.me/8801749913165"}
+            target="_blank"
+            rel="noopener noreferrer"
             className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-brand-bridge hover:text-brand-ink"
           >
-            Message on WhatsApp <ExternalLink className="h-3.5 w-3.5" />
+            {student.whatsapp_group_url ? "Open your WhatsApp group" : "Message on WhatsApp"} <ExternalLink className="h-3.5 w-3.5" />
           </a>
         </div>
       </section>
