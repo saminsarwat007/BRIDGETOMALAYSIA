@@ -8,6 +8,7 @@ import { StudentInvoices } from "@/components/admin/student-invoices";
 import { StudentContracts } from "@/components/admin/student-contracts";
 import { StudentTabs } from "@/components/admin/student-tabs";
 import { AgencyReferralButton } from "@/components/admin/agency-referral-button";
+import { DeleteStudentButton } from "@/components/admin/delete-student-button";
 
 export const dynamic = "force-dynamic";
 
@@ -134,6 +135,10 @@ export default async function StudentDetailPage({ params, searchParams }: PagePr
             >
               <Pencil className="h-4 w-4" /> Edit
             </Link>
+            <DeleteStudentButton
+              studentId={student.id}
+              studentName={student.full_name}
+            />
           </div>
         </div>
       </header>
