@@ -350,6 +350,16 @@ function InvoiceCard({
         >
           <Download className="h-3.5 w-3.5" /> Download PDF
         </Link>
+        {invoice.drive_link && (
+          <a
+            href={invoice.drive_link}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex items-center gap-1.5 rounded-md border border-brand-stone bg-brand-paper px-3 py-1.5 text-xs font-medium text-brand-ink hover:bg-brand-cream transition"
+          >
+            <ExternalLink className="h-3.5 w-3.5" /> View in Drive
+          </a>
+        )}
         {invoice.status === "draft" && (
           <button
             onClick={send}

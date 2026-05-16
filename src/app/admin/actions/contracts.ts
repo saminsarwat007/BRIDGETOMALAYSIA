@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { buildContractFilename } from "@/lib/utils";
+import { renderAndUploadPdf } from "@/lib/pdf/pdf-to-drive";
+import { ContractPDF } from "@/lib/pdf/contract-pdf";
+import React from "react";
 
 const ContractSchema = z.object({
   student_id: z.string().uuid(),
@@ -19,7 +22,7 @@ export async function createContractAction(input: ContractInput) {
 
   const { data: student } = await supabase
     .from("students")
-    .select("id, full_name")
+    .select("id, full_name, passport_no, address, drive_folder_id, drive_folder_url, invoice_subfolder_id")
     .eq("id", parsed.student_id)
     .single();
   if (!student) throw new Error("Student not found");
@@ -43,12 +46,42 @@ export async function createContractAction(input: ContractInput) {
     .single();
   if (error) throw new Error(error.message);
 
+  // Generate PDF and upload to Google Drive (non-blocking)
+  const pdfFilename = buildContractFilename(student.full_name);
+  try {
+    const contractRecord = {
+      id: data.id,
+      student_id: parsed.student_id,
+      contract_number: data.contract_number,
+      field_values: parsed.field_values,
+      signed: false,
+      drive_file_id: null,
+      drive_link: null,
+      generated_at: new Date().toISOString(),
+      notes: parsed.notes ?? null,
+    };
+    const pdfElement = React.createElement(ContractPDF, {
+      contract: contractRecord as any,
+      student: student as any,
+    });
+    await renderAndUploadPdf({
+      student,
+      pdfElement,
+      filename: pdfFilename,
+      subfolder: "Contracts",
+      table: "contracts",
+      recordId: data.id,
+    });
+  } catch (e) {
+    console.error("Contract PDF Drive upload failed (non-blocking):", e);
+  }
+
   revalidatePath(`/admin/students/${parsed.student_id}`);
   return {
     ok: true,
     id: data.id,
     contract_number: data.contract_number,
-    pdf_filename: buildContractFilename(student.full_name),
+    pdf_filename: pdfFilename,
   };
 }
 

@@ -6,6 +6,9 @@ import { createClient, getCurrentAdminId } from "@/lib/supabase/server";
 import { sendEmail } from "@/lib/email/resend";
 import { emailTemplates } from "@/lib/email/templates";
 import { buildInvoiceFilename, formatCurrency } from "@/lib/utils";
+import { renderAndUploadPdf } from "@/lib/pdf/pdf-to-drive";
+import { InvoicePDF } from "@/lib/pdf/invoice-pdf";
+import React from "react";
 
 const LineItemSchema = z.object({
   description: z.string().min(1),
@@ -32,7 +35,7 @@ export async function createInvoiceAction(input: InvoiceInput) {
 
   const { data: student, error: stuErr } = await supabase
     .from("students")
-    .select("id, full_name, email, passport_no")
+    .select("id, full_name, email, passport_no, drive_folder_id, drive_folder_url, invoice_subfolder_id, address, phone, university, campus, intake")
     .eq("id", parsed.student_id)
     .single();
   if (stuErr || !student) throw new Error("Student not found");
@@ -86,6 +89,39 @@ export async function createInvoiceAction(input: InvoiceInput) {
     } catch (err) {
       console.error("invoice email failed", err);
     }
+  }
+
+  // Generate PDF and upload to Google Drive (non-blocking — failures don't break the action)
+  const invoiceRecord = {
+    ...parsed,
+    id: data.id,
+    invoice_number: invoiceNumber,
+    total_amount: total,
+    pdf_filename: pdfFilename,
+    field_values: parsed.field_values,
+    line_items: parsed.line_items,
+    status: parsed.status,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    drive_file_id: null,
+    drive_link: null,
+  };
+  try {
+    const pdfElement = React.createElement(InvoicePDF, {
+      invoice: invoiceRecord as any,
+      student: student as any,
+      payments: [],
+    });
+    await renderAndUploadPdf({
+      student,
+      pdfElement,
+      filename: pdfFilename,
+      subfolder: "Invoice and Receipt",
+      table: "invoices",
+      recordId: data.id,
+    });
+  } catch (e) {
+    console.error("Invoice PDF Drive upload failed (non-blocking):", e);
   }
 
   revalidatePath("/admin/invoices");
