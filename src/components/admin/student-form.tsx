@@ -2,9 +2,11 @@
 
 import { useFormState } from "react-dom";
 import { useRouter } from "next/navigation";
-import { useEffect, useTransition } from "react";
+import { useEffect, useRef, useTransition } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { PassportScanner } from "@/components/passport-scanner";
+import type { PassportData } from "@/lib/ai/gemini";
 import type { Student } from "@/types/database";
 import { universitiesByType } from "@/lib/universities";
 import {
@@ -21,6 +23,7 @@ interface Props {
 export function StudentForm({ mode, student }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const formRef = useRef<HTMLFormElement>(null);
 
   const initialState: StudentFormState = null;
 
@@ -54,8 +57,34 @@ export function StudentForm({ mode, student }: Props) {
   const fe = (key: string) =>
     state && !state.ok ? state.fieldErrors?.[key] : undefined;
 
+  function handlePassportScan(data: PassportData) {
+    const form = formRef.current;
+    if (!form) return;
+    const set = (name: string, value: string | null) => {
+      if (!value) return;
+      const el = form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | null;
+      if (el) {
+        // Trigger React's internal value tracking
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+          window.HTMLInputElement.prototype, "value"
+        )?.set ?? Object.getOwnPropertyDescriptor(
+          window.HTMLTextAreaElement.prototype, "value"
+        )?.set;
+        nativeInputValueSetter?.call(el, value);
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    };
+    set("full_name", data.full_name);
+    set("passport_no", data.passport_no);
+    set("address", data.address);
+    set("phone", data.phone);
+  }
+
   return (
-    <form action={handleSubmit} className="space-y-8">
+    <form ref={formRef} action={handleSubmit} className="space-y-8">
+      {mode === "create" && (
+        <PassportScanner onExtracted={handlePassportScan} />
+      )}
       <FieldSet legend="Personal">
         <Row>
           <Field label="Full name" name="full_name" required defaultValue={student?.full_name} error={fe("full_name")} />

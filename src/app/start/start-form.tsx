@@ -16,6 +16,8 @@ import {
 import { universitiesByType } from "@/lib/universities";
 import { REQUIRED_DOCUMENTS, type DocumentGuideline } from "@/lib/documents";
 import { TurnstileWidget } from "@/components/security/turnstile-widget";
+import { PassportScanner } from "@/components/passport-scanner";
+import type { PassportData } from "@/lib/ai/gemini";
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
@@ -153,7 +155,14 @@ export function StartForm() {
       />
     );
 
-  return <EditView data={data} update={update} onNext={detailsNext} />;
+  function handlePassportScan(extracted: PassportData) {
+    if (extracted.full_name) update("full_name", extracted.full_name);
+    if (extracted.passport_no) update("passport_no", extracted.passport_no);
+    if (extracted.address) update("address", extracted.address);
+    if (extracted.phone) update("phone", extracted.phone);
+  }
+
+  return <EditView data={data} update={update} onNext={detailsNext} onPassportScan={handlePassportScan} />;
 }
 
 // -- Step 1: Edit ------------------------------------------------------------
@@ -162,14 +171,18 @@ function EditView({
   data,
   update,
   onNext,
+  onPassportScan,
 }: {
   data: FormData;
   update: <K extends keyof FormData>(k: K, v: FormData[K]) => void;
   onNext: (e: React.FormEvent) => void;
+  onPassportScan: (data: PassportData) => void;
 }) {
   return (
     <form onSubmit={onNext} className="space-y-6">
       <Stepper current={1} />
+
+      <PassportScanner onExtracted={onPassportScan} />
 
       <FieldSet legend="About you">
         <Row>
