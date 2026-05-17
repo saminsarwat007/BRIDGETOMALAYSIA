@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { STAGES, stageLabel, formatCurrency } from "@/lib/utils";
-import { ArrowUpRight, Users, FileWarning, ReceiptText } from "lucide-react";
+import { ArrowUpRight, Users, FileWarning, ReceiptText, BarChart3 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Overview — Bridge to Malaysia Admin" };
@@ -44,9 +44,14 @@ export default async function AdminOverviewPage() {
           <p className="label-eyebrow">Today</p>
           <h1 className="mt-1 font-display text-3xl sm:text-4xl text-brand-ink">Welcome back</h1>
         </div>
-        <Link href="/admin/students/new" className="btn-gold hidden sm:inline-flex">
-          New student
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/admin/analytics" className="btn-ghost border border-brand-stone hidden sm:inline-flex">
+            <BarChart3 className="h-4 w-4" /> Analytics
+          </Link>
+          <Link href="/admin/students/new" className="btn-gold hidden sm:inline-flex">
+            New student
+          </Link>
+        </div>
       </header>
 
       <section className="mt-8 grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -133,9 +138,14 @@ export default async function AdminOverviewPage() {
         </div>
       </section>
 
-      <Link href="/admin/students/new" className="btn-gold mt-8 inline-flex sm:hidden">
-        New student
-      </Link>
+      <div className="mt-8 flex flex-col gap-2 sm:hidden">
+        <Link href="/admin/analytics" className="btn-ghost border border-brand-stone inline-flex justify-center">
+          <BarChart3 className="h-4 w-4" /> Analytics
+        </Link>
+        <Link href="/admin/students/new" className="btn-gold inline-flex justify-center">
+          New student
+        </Link>
+      </div>
     </div>
   );
 }
