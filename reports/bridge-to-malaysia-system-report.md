@@ -327,6 +327,41 @@ The downloaded contract PDF shows both parties' cursive signatures above their r
 
 ---
 
+## 11b. Commission Tracking and Profit Dividing
+
+The system includes a dedicated Commissions page at `/admin/commissions`.
+
+### Recording a commission
+
+When a university pays a commission, the admin records it with:
+
+- University name
+- Amount (BDT or MYR)
+- Date received
+- Optional: which student it relates to
+- Notes
+
+### Balance summary
+
+The page shows three totals at a glance:
+
+| Card | Meaning |
+|---|---|
+| Total received | All commission money ever received |
+| Profit divided | Amount distributed to partners |
+| Company balance | What remains in the company (received minus divided) |
+
+### Marking profit divided
+
+When the team decides to distribute earnings, the admin clicks the split icon on a commission entry. A small form opens to enter:
+
+- Date the profit was divided
+- How it was split (e.g. "50% Huzaifa, 50% Samin")
+
+The commission is then marked **Divided** and removed from the company balance. It can be undone if needed.
+
+---
+
 ## 12. WhatsApp Group Link
 
 Each student can have a dedicated WhatsApp group link saved in their student profile.
@@ -631,6 +666,7 @@ The system is fully operational end-to-end. The following are the remaining item
 | Dashboard BDT/MYR stat layout fixed | The invoiced amounts were overflowing the stat card |
 | Refunds UI added to student profiles | Admin can create, track, and complete refund requests |
 | Document checklist per student | Admin can mark documents as received or request re-upload with a reason |
+| Commission management page added | Full CRUD for commissions with profit-dividing and company balance tracking |
 | Test data seeded | 3 test students with full journey data for testing |
 | All environment variables confirmed in Vercel | Site is fully live and operational |
 

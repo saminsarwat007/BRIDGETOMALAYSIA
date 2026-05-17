@@ -132,11 +132,15 @@ BRIDGETOMALAYSIA/
 │       │   ├── students/             ← List, new, [id], [id]/edit
 │       │   ├── invoices/             ← List + /[id]/pdf download
 │       │   ├── finance/              ← Revenue + commissions overview
+│       │   ├── commissions/          ← Commission ledger with profit-dividing
+│       │   │   ├── page.tsx          ← Totals: received / divided / company balance
+│       │   │   └── commissions-client.tsx ← CRUD table + inline divide form
 │       │   ├── referrals/            ← Referrer rollup
 │       │   └── actions/              ← Server actions
 │       │       ├── students.ts       ← create/update/delete student
 │       │       ├── tracking.ts       ← addStageUpdate, quickSetStage
-│       │       └── invoices.ts       ← createInvoice, recordPayment, approve/reject, contract CRUD
+│       │       ├── invoices.ts       ← createInvoice, recordPayment, approve/reject, contract CRUD
+│       │       └── commissions.ts    ← createCommission, update, delete, markProfitDivided, unmark
 │       └── api/
 │           └── public/
 │               ├── intake/route.ts            ← Anonymous student intake submission
@@ -344,5 +348,7 @@ The Drive service account must be shared on the parent "Student details" folder 
 | May 2026 | Contract PDF: shows client + provider signature images; SIGNED stamp fallback for older contracts |
 | May 2026 | Dashboard `Invoiced BDT/MYR` stat fixed (overflow → two stacked lines) |
 | May 2026 | Seed script added (`scripts/seed.mjs`) — 3 test students with full data |
+| May 2026 | Commissions page added (`/admin/commissions`) — full CRUD + profit-dividing ledger |
+| May 2026 | Commission profit-dividing: mark divided (date + notes), undo, running company balance |
 
 The SaaS is **fully operational** end-to-end: AI passport scan → onboard student → generate invoice/contract PDF → both parties type-sign → student uploads receipt → admin approves → status visible on tracking page.
