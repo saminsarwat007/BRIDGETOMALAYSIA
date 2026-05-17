@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
+import React from "react";
 import { createServiceClient } from "@/lib/supabase/server";
+import { ContractPDF } from "@/lib/pdf/contract-pdf";
+import { renderAndUploadPdf } from "@/lib/pdf/pdf-to-drive";
+import { buildContractFilename } from "@/lib/utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +29,7 @@ export async function POST(request: Request) {
     // Verify student
     const { data: student } = await supabase
       .from("students")
-      .select("id, full_name")
+      .select("id, full_name, passport_no, address, drive_folder_id, drive_folder_url, invoice_subfolder_id")
       .eq("passport_no", passport)
       .maybeSingle();
 
@@ -75,7 +79,51 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, signed_at: new Date().toISOString() });
+    const signedAt = new Date().toISOString();
+
+    // Generate signed PDF and upload to Drive (non-blocking — don't fail the response)
+    try {
+      const contractForPdf = {
+        id: contractId,
+        student_id: student.id,
+        contract_number: (contract as any).contract_number ?? "",
+        field_values: updatedFields,
+        signed: true,
+        signed_at: signedAt,
+        drive_file_id: null,
+        drive_link: null,
+        generated_at: new Date().toISOString(),
+        notes: null,
+      };
+
+      // Re-fetch contract_number if not already in the select
+      const { data: fullContract } = await supabase
+        .from("contracts")
+        .select("contract_number")
+        .eq("id", contractId)
+        .single();
+
+      if (fullContract) contractForPdf.contract_number = fullContract.contract_number;
+
+      const pdfElement = React.createElement(ContractPDF, {
+        contract: contractForPdf as any,
+        student: student as any,
+      });
+
+      await renderAndUploadPdf({
+        supabaseClient: supabase,
+        student,
+        pdfElement,
+        filename: buildContractFilename(student.full_name, true),
+        subfolder: "Contracts",
+        table: "contracts",
+        recordId: contractId,
+      });
+    } catch (pdfErr) {
+      console.error("Signed PDF upload failed (non-blocking):", pdfErr);
+    }
+
+    return NextResponse.json({ ok: true, signed_at: signedAt });
   } catch (err) {
     console.error("sign-contract error", err);
     return NextResponse.json({ ok: false, error: "Server error" }, { status: 500 });

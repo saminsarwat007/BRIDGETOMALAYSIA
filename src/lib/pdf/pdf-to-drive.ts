@@ -4,9 +4,11 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 import { ensureSubfolder, uploadToDrive } from "@/lib/google/drive";
 import { extractDriveFolderId } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 
 interface UploadPdfOptions {
+  /** Optional pre-built supabase client (e.g. service client for public routes) */
+  supabaseClient?: ReturnType<typeof createServiceClient>;
   /** The student row (needs id, full_name, drive_folder_id, drive_folder_url, invoice_subfolder_id) */
   student: {
     id: string;
@@ -83,7 +85,7 @@ export async function renderAndUploadPdf(opts: UploadPdfOptions): Promise<Upload
     });
 
     // 5. Update DB record with Drive info
-    const supabase = createClient();
+    const supabase = opts.supabaseClient ?? createClient();
     await supabase
       .from(table)
       .update({

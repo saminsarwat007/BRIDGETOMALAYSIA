@@ -80,9 +80,9 @@ export function buildInvoiceFilename(studentName: string, invoiceType: string) {
   return `${slugForFilename(studentName)}_${slugForFilename(invoiceType)}.pdf`;
 }
 
-/** Build contract PDF filename: "samin_contract.pdf" */
-export function buildContractFilename(studentName: string) {
-  return `${slugForFilename(studentName)}_contract.pdf`;
+/** Build contract PDF filename: "samin_contract.pdf" or "samin_contract_SIGNED.pdf" */
+export function buildContractFilename(studentName: string, signed = false) {
+  return `${slugForFilename(studentName)}_contract${signed ? "_SIGNED" : ""}.pdf`;
 }
 
 /** Extract Google Drive folder ID from a sharing URL */
