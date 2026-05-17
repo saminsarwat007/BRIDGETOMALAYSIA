@@ -213,6 +213,29 @@ create table if not exists public.transactions (
 
 create index if not exists transactions_student_idx on public.transactions (student_id);
 
+-- Manual refunds / overpayment returns
+create table if not exists public.refunds (
+  id uuid primary key default uuid_generate_v4(),
+  student_id uuid not null references public.students(id) on delete cascade,
+  invoice_id uuid references public.invoices(id) on delete set null,
+  amount numeric(12,2) not null check (amount > 0),
+  currency text not null check (currency in ('BDT', 'MYR')),
+  company_account_key text not null,
+  status text not null default 'pending' check (status in ('pending', 'refunded', 'cancelled')),
+  reason text,
+  notes text,
+  refund_method text,
+  bank_reference text,
+  proof_drive_link text,
+  refunded_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists refunds_student_idx on public.refunds (student_id);
+create index if not exists refunds_status_idx on public.refunds (status);
+create index if not exists refunds_currency_idx on public.refunds (currency);
+
 -- Company bank/cash accounts
 create table if not exists public.company_accounts (
   key text primary key,
@@ -348,6 +371,7 @@ alter table public.contracts enable row level security;
 alter table public.invoices enable row level security;
 alter table public.payments enable row level security;
 alter table public.transactions enable row level security;
+alter table public.refunds enable row level security;
 alter table public.company_accounts enable row level security;
 alter table public.referrals enable row level security;
 alter table public.commissions enable row level security;
@@ -366,7 +390,7 @@ declare t text;
 begin
   foreach t in array array[
     'students','applications','documents','contracts','invoices',
-    'payments','transactions','company_accounts','referrals','commissions',
+    'payments','transactions','refunds','company_accounts','referrals','commissions',
     'stage_history','numbering_counters'
   ] loop
     execute format($f$drop policy if exists "%s_admin_all" on public.%I$f$, t, t);

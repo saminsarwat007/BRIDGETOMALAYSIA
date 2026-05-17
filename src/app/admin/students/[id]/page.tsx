@@ -7,6 +7,7 @@ import { TrackingUpdates } from "@/components/admin/tracking-updates";
 import { StudentInvoices } from "@/components/admin/student-invoices";
 import { StudentContracts } from "@/components/admin/student-contracts";
 import { StudentDocuments } from "@/components/admin/student-documents";
+import { StudentRefunds } from "@/components/admin/student-refunds";
 import { StudentTabs } from "@/components/admin/student-tabs";
 import { AgencyReferralButton } from "@/components/admin/agency-referral-button";
 import { DeleteStudentButton } from "@/components/admin/delete-student-button";
@@ -32,7 +33,7 @@ export default async function StudentDetailPage({ params, searchParams }: PagePr
   const supabase = createClient();
   const tab = searchParams.tab ?? "tracking";
 
-  const [studentRes, historyRes, invoicesRes, paymentsRes, contractsRes, documentsRes] = await Promise.all([
+  const [studentRes, historyRes, invoicesRes, paymentsRes, contractsRes, documentsRes, refundsRes] = await Promise.all([
     supabase.from("students").select("*").eq("id", params.id).maybeSingle(),
     supabase
       .from("stage_history")
@@ -59,6 +60,11 @@ export default async function StudentDetailPage({ params, searchParams }: PagePr
       .select("*")
       .eq("student_id", params.id)
       .order("updated_at", { ascending: false }),
+    supabase
+      .from("refunds")
+      .select("*")
+      .eq("student_id", params.id)
+      .order("created_at", { ascending: false }),
   ]);
 
   const student = studentRes.data;
@@ -69,14 +75,19 @@ export default async function StudentDetailPage({ params, searchParams }: PagePr
   const payments = paymentsRes.data ?? [];
   const contracts = contractsRes.data ?? [];
   const documents = documentsRes.data ?? [];
+  const refunds = refundsRes.data ?? [];
 
-  const totalInvoiced = invoices
-    .filter((i: any) => i.status !== "draft" && i.status !== "cancelled")
-    .reduce((s: number, i: any) => s + Number(i.total_amount ?? 0), 0);
-  const totalPaid = payments
-    .filter((p: any) => p.status === "approved")
-    .reduce((s: number, p: any) => s + Number(p.amount_received ?? 0), 0);
-  const balance = totalInvoiced - totalPaid;
+  const moneyTotals = (currency: "BDT" | "MYR") => {
+    const invoiced = invoices
+      .filter((i: any) => i.currency === currency && i.status !== "draft" && i.status !== "cancelled")
+      .reduce((sum: number, i: any) => sum + Number(i.total_amount ?? 0), 0);
+    const paid = payments
+      .filter((p: any) => p.status === "approved" && p.currency === currency)
+      .reduce((sum: number, p: any) => sum + Number(p.amount_received ?? 0), 0);
+    return { invoiced, paid, balance: invoiced - paid };
+  };
+  const bdt = moneyTotals("BDT");
+  const myr = moneyTotals("MYR");
 
   return (
     <div className="p-5 sm:p-8 max-w-5xl">
@@ -155,15 +166,16 @@ export default async function StudentDetailPage({ params, searchParams }: PagePr
         <SummaryCard label="University" value={student.university ?? "—"} sub={student.campus} />
         <SummaryCard label="Intake" value={student.intake ?? "—"} />
         <SummaryCard
-          label="Invoiced"
-          value={formatCurrency(totalInvoiced, "BDT")}
+          label="BDT balance"
+          value={formatCurrency(bdt.balance, "BDT")}
           mono
+          accent={bdt.balance > 0}
         />
         <SummaryCard
-          label="Balance"
-          value={formatCurrency(balance, "BDT")}
+          label="MYR balance"
+          value={formatCurrency(myr.balance, "MYR")}
           mono
-          accent={balance > 0}
+          accent={myr.balance > 0}
         />
       </section>
 
@@ -178,6 +190,9 @@ export default async function StudentDetailPage({ params, searchParams }: PagePr
         )}
         {tab === "invoices" && (
           <StudentInvoices student={student as any} invoices={invoices as any} payments={payments as any} />
+        )}
+        {tab === "refunds" && (
+          <StudentRefunds student={student as any} invoices={invoices as any} refunds={refunds as any} />
         )}
         {tab === "contracts" && (
           <StudentContracts student={student as any} contracts={contracts as any} />

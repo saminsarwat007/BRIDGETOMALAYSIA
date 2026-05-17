@@ -8,16 +8,18 @@ export const metadata = { title: "Finance — Bridge to Malaysia Admin" };
 
 export default async function FinancePage() {
   const supabase = createClient();
-  const [invoicesRes, paymentsRes, commissionsRes, accountsRes] = await Promise.all([
+  const [invoicesRes, paymentsRes, commissionsRes, accountsRes, refundsRes] = await Promise.all([
     supabase.from("invoices").select("id, total_amount, currency, status, created_at, student_id, invoice_type, students(full_name)"),
     supabase.from("payments").select("id, amount_received, currency, company_account_key, payment_date, status, source, invoices(currency)"),
     supabase.from("commissions").select("amount, currency, company_account_key, received_date, university"),
     supabase.from("company_accounts").select("*"),
+    supabase.from("refunds").select("id, amount, currency, company_account_key, status, refunded_at, created_at, students(full_name)"),
   ]);
 
   const invoices = invoicesRes.data ?? [];
   const payments = (paymentsRes.data ?? []).filter((p: any) => p.status === "approved");
   const commissions = commissionsRes.data ?? [];
+  const refunds = refundsRes.data ?? [];
   const dbAccounts = accountsRes.data ?? [];
   const accounts = COMPANY_ACCOUNTS.map((base) => ({
     ...base,
@@ -34,8 +36,14 @@ export default async function FinancePage() {
     const commission = commissions
       .filter((c: any) => c.currency === currency)
       .reduce((s: number, c: any) => s + Number(c.amount), 0);
+    const refunded = refunds
+      .filter((r: any) => r.currency === currency && r.status === "refunded")
+      .reduce((s: number, r: any) => s + Number(r.amount), 0);
+    const pendingRefunds = refunds
+      .filter((r: any) => r.currency === currency && r.status === "pending")
+      .reduce((s: number, r: any) => s + Number(r.amount), 0);
 
-    return { invoiced, paid, commission, outstanding: invoiced - paid };
+    return { invoiced, paid, commission, refunded, pendingRefunds, outstanding: invoiced - paid };
   };
 
   const bdt = totals("BDT");
@@ -52,7 +60,7 @@ export default async function FinancePage() {
       <section className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-5">
         {accounts.map((account: any) => {
           const t = totals(account.currency);
-          const currentBalance = Number(account.opening_balance ?? 0) + t.paid + t.commission;
+          const currentBalance = Number(account.opening_balance ?? 0) + t.paid + t.commission - t.refunded;
           return (
             <div key={account.key} className="card-paper p-5 space-y-4">
               <div className="flex items-start justify-between gap-4">
@@ -69,6 +77,8 @@ export default async function FinancePage() {
                 <MiniStat label="Current balance" value={formatCurrency(currentBalance, account.currency)} accent />
                 <MiniStat label="Collected" value={formatCurrency(t.paid, account.currency)} />
                 <MiniStat label="Outstanding" value={formatCurrency(t.outstanding, account.currency)} warn={t.outstanding > 0} />
+                <MiniStat label="Pending refunds" value={formatCurrency(t.pendingRefunds, account.currency)} warn={t.pendingRefunds > 0} />
+                <MiniStat label="Refunded" value={formatCurrency(t.refunded, account.currency)} />
               </div>
 
               <form action={updateCompanyAccountAction} className="border-t border-brand-stone pt-4 grid grid-cols-1 sm:grid-cols-[1fr_2fr_auto] gap-2">
@@ -99,6 +109,13 @@ export default async function FinancePage() {
         <Stat label="BDT collected" value={formatCurrency(bdt.paid, "BDT")} icon={<TrendingUp className="h-4 w-4" />} positive />
         <Stat label="MYR invoiced" value={formatCurrency(myr.invoiced, "MYR")} icon={<ReceiptText className="h-4 w-4" />} />
         <Stat label="MYR collected" value={formatCurrency(myr.paid, "MYR")} icon={<Wallet className="h-4 w-4" />} positive />
+      </section>
+
+      <section className="mt-8 grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Stat label="Pending refunds BDT" value={formatCurrency(bdt.pendingRefunds, "BDT")} icon={<TrendingDown className="h-4 w-4" />} negative={bdt.pendingRefunds > 0} />
+        <Stat label="Refunded BDT" value={formatCurrency(bdt.refunded, "BDT")} icon={<TrendingDown className="h-4 w-4" />} />
+        <Stat label="Pending refunds MYR" value={formatCurrency(myr.pendingRefunds, "MYR")} icon={<TrendingDown className="h-4 w-4" />} negative={myr.pendingRefunds > 0} />
+        <Stat label="Refunded MYR" value={formatCurrency(myr.refunded, "MYR")} icon={<TrendingDown className="h-4 w-4" />} />
       </section>
 
       <section className="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -136,6 +153,28 @@ export default async function FinancePage() {
             </ul>
           )}
         </div>
+      </section>
+
+      <section className="mt-5 card-paper p-5">
+        <h2 className="font-display text-lg text-brand-ink mb-3">Pending refunds</h2>
+        {refunds.filter((r: any) => r.status === "pending").length === 0 ? (
+          <p className="text-sm text-brand-muted">No pending refunds.</p>
+        ) : (
+          <ul className="space-y-2">
+            {refunds
+              .filter((r: any) => r.status === "pending")
+              .slice(0, 8)
+              .map((r: any) => (
+                <li key={r.id} className="flex items-center justify-between gap-3 text-sm border-b border-brand-stone/50 pb-2 last:border-0">
+                  <div>
+                    <div className="font-medium text-brand-ink truncate">{r.students?.full_name ?? "Student"}</div>
+                    <div className="text-xs text-brand-muted">{formatDate(r.created_at)} · {accountLabel(r.company_account_key)}</div>
+                  </div>
+                  <span className="font-mono text-brand-bridge">{formatCurrency(r.amount, r.currency)}</span>
+                </li>
+              ))}
+          </ul>
+        )}
       </section>
     </div>
   );

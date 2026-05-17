@@ -29,6 +29,7 @@ export type PaymentSource = "admin" | "student";
 export type PaymentStatus = "pending" | "approved" | "rejected";
 export type MoneyCurrency = "BDT" | "MYR";
 export type CompanyAccountKey = "bangladesh_bdt" | "malaysia_myr";
+export type RefundStatus = "pending" | "refunded" | "cancelled";
 
 export type AttachmentKind =
   | "offer_letter"
@@ -149,6 +150,24 @@ export interface CompanyAccount {
   currency: MoneyCurrency;
   opening_balance: number;
   notes: string | null;
+  updated_at: string;
+}
+
+export interface Refund {
+  id: string;
+  student_id: string;
+  invoice_id: string | null;
+  amount: number;
+  currency: MoneyCurrency;
+  company_account_key: CompanyAccountKey | string;
+  status: RefundStatus;
+  reason: string | null;
+  notes: string | null;
+  refund_method: string | null;
+  bank_reference: string | null;
+  proof_drive_link: string | null;
+  refunded_at: string | null;
+  created_at: string;
   updated_at: string;
 }
 
