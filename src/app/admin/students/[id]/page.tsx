@@ -8,6 +8,7 @@ import { StudentInvoices } from "@/components/admin/student-invoices";
 import { StudentContracts } from "@/components/admin/student-contracts";
 import { StudentDocuments } from "@/components/admin/student-documents";
 import { StudentRefunds } from "@/components/admin/student-refunds";
+import { StudentNotes } from "@/components/admin/student-notes";
 import { StudentTabs } from "@/components/admin/student-tabs";
 import { AgencyReferralButton } from "@/components/admin/agency-referral-button";
 import { DeleteStudentButton } from "@/components/admin/delete-student-button";
@@ -33,7 +34,7 @@ export default async function StudentDetailPage({ params, searchParams }: PagePr
   const supabase = createClient();
   const tab = searchParams.tab ?? "tracking";
 
-  const [studentRes, historyRes, invoicesRes, paymentsRes, contractsRes, documentsRes, refundsRes] = await Promise.all([
+  const [studentRes, historyRes, invoicesRes, paymentsRes, contractsRes, documentsRes, refundsRes, notesRes] = await Promise.all([
     supabase.from("students").select("*").eq("id", params.id).maybeSingle(),
     supabase
       .from("stage_history")
@@ -65,6 +66,11 @@ export default async function StudentDetailPage({ params, searchParams }: PagePr
       .select("*")
       .eq("student_id", params.id)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("student_notes")
+      .select("*")
+      .eq("student_id", params.id)
+      .order("created_at", { ascending: false }),
   ]);
 
   const student = studentRes.data;
@@ -76,6 +82,7 @@ export default async function StudentDetailPage({ params, searchParams }: PagePr
   const contracts = contractsRes.data ?? [];
   const documents = documentsRes.data ?? [];
   const refunds = refundsRes.data ?? [];
+  const notes = notesRes.data ?? [];
 
   const moneyTotals = (currency: "BDT" | "MYR") => {
     const invoiced = invoices
@@ -196,6 +203,9 @@ export default async function StudentDetailPage({ params, searchParams }: PagePr
         )}
         {tab === "contracts" && (
           <StudentContracts student={student as any} contracts={contracts as any} />
+        )}
+        {tab === "notes" && (
+          <StudentNotes studentId={student.id} notes={notes as any} />
         )}
         {tab === "details" && (
           <DetailsTab student={student as any} />

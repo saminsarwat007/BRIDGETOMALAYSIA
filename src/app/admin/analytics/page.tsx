@@ -35,7 +35,7 @@ export default async function AnalyticsPage() {
     supabase.from("payments").select("id, amount_received, currency, status, source, student_id, created_at"),
     supabase.from("documents").select("id, status, doc_type, student_id"),
     supabase.from("stage_history").select("id, student_id, stage, comment, changed_at").order("changed_at", { ascending: false }),
-    supabase.from("commissions").select("amount, currency, received_date"),
+    supabase.from("commissions").select("amount, currency, received_date, profit_divided"),
     supabase.from("refunds").select("amount, currency, status, created_at"),
   ]);
 
@@ -137,6 +137,39 @@ export default async function AnalyticsPage() {
   const hasInvoice = new Set(invoices.map((i: any) => i.student_id));
   const hasPayment = new Set(approvedPayments.map((p: any) => p.student_id));
   const conversionRate = totalStudents > 0 ? Math.round((hasPayment.size / totalStudents) * 100) : 0;
+
+  // ─── Monthly commission chart ───
+  const monthlyComm: Record<string, { bdt: number; myr: number }> = {};
+  commissions.forEach((c: any) => {
+    if (!c.received_date) return;
+    const d = new Date(c.received_date);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    if (!monthlyComm[key]) monthlyComm[key] = { bdt: 0, myr: 0 };
+    if (c.currency === "BDT") monthlyComm[key].bdt += Number(c.amount);
+    else monthlyComm[key].myr += Number(c.amount);
+  });
+  const sortedCommMonths = Object.entries(monthlyComm)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-6);
+  const maxCommMYR = Math.max(1, ...sortedCommMonths.map(([, v]) => v.myr));
+  const maxCommBDT = Math.max(1, ...sortedCommMonths.map(([, v]) => v.bdt));
+
+  // ─── Stage conversion funnel (unique students who ever reached each stage) ───
+  const stageStudents = new Map<string, Set<string>>();
+  history.forEach((h: any) => {
+    if (!stageStudents.has(h.stage)) stageStudents.set(h.stage, new Set());
+    stageStudents.get(h.stage)!.add(h.student_id);
+  });
+  // also include current stage
+  students.forEach((s: any) => {
+    if (!stageStudents.has(s.current_stage)) stageStudents.set(s.current_stage, new Set());
+    stageStudents.get(s.current_stage)!.add(s.id);
+  });
+  const funnelData = STAGES.map((s) => ({
+    label: s.label,
+    count: stageStudents.get(s.value)?.size ?? 0,
+  }));
+  const maxFunnel = Math.max(1, totalStudents);
 
   return (
     <div className="p-5 sm:p-8 max-w-6xl">
@@ -343,6 +376,81 @@ export default async function AnalyticsPage() {
               })}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* ── Monthly commission income ── */}
+      {sortedCommMonths.length > 0 && (
+        <div className="card-paper p-5">
+          <h2 className="font-display text-lg text-brand-ink flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-brand-bridge" /> Monthly Commission Income
+          </h2>
+          <div className="mt-1 flex gap-4 text-xs text-brand-muted">
+            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-brand-bridge" /> MYR</span>
+            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-amber-500" /> BDT</span>
+          </div>
+          <div className="mt-4 flex items-end gap-3 h-44">
+            {sortedCommMonths.map(([month, { bdt, myr }]) => {
+              const myrPct = (myr / maxCommMYR) * 100;
+              const bdtPct = (bdt / maxCommBDT) * 100;
+              const [year, mon] = month.split("-");
+              return (
+                <div key={month} className="flex-1 flex flex-col items-center gap-1">
+                  <div className="w-full flex items-end justify-center gap-0.5 h-36">
+                    <div
+                      className="flex-1 max-w-[20px] rounded-t-sm bg-brand-bridge/80 hover:bg-brand-bridge transition-all"
+                      style={{ height: `${myrPct}%` }}
+                      title={`MYR ${myr.toLocaleString()}`}
+                    />
+                    <div
+                      className="flex-1 max-w-[20px] rounded-t-sm bg-amber-400/80 hover:bg-amber-500 transition-all"
+                      style={{ height: `${bdtPct}%` }}
+                      title={`BDT ${bdt.toLocaleString()}`}
+                    />
+                  </div>
+                  <span className="text-[10px] text-brand-muted">{mon}/{year.slice(2)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Stage conversion funnel ── */}
+      <div className="card-paper p-5">
+        <h2 className="font-display text-lg text-brand-ink flex items-center gap-2">
+          <BarChart3 className="h-5 w-5 text-brand-bridge" /> Stage Conversion Funnel
+        </h2>
+        <p className="text-xs text-brand-muted mt-0.5">Unique students who have ever reached each stage</p>
+        <div className="mt-5 space-y-2">
+          {funnelData.map((s, i) => {
+            const pct = (s.count / maxFunnel) * 100;
+            const dropPct = i > 0 && funnelData[i - 1].count > 0
+              ? Math.round((1 - s.count / funnelData[i - 1].count) * 100)
+              : 0;
+            return (
+              <div key={s.label} className="space-y-0.5">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-brand-ink/80">{s.label}</span>
+                  <div className="flex items-center gap-2">
+                    {i > 0 && dropPct > 0 && (
+                      <span className="text-[10px] text-rose-500">-{dropPct}%</span>
+                    )}
+                    <span className="font-mono text-brand-ink w-4 text-right">{s.count}</span>
+                  </div>
+                </div>
+                <div className="h-2.5 rounded-full bg-brand-stone/30 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${pct}%`,
+                      background: `hsl(${25 + i * 8}, 60%, ${50 - i * 2}%)`,
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

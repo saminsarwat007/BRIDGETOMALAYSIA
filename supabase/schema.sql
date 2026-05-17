@@ -298,6 +298,16 @@ alter table public.commissions add column if not exists divided_notes text;
 
 create index if not exists commissions_student_idx on public.commissions (student_id);
 
+-- Internal admin notes per student (not visible on tracking page)
+create table if not exists public.student_notes (
+  id uuid primary key default uuid_generate_v4(),
+  student_id uuid not null references public.students(id) on delete cascade,
+  content text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists student_notes_student_idx on public.student_notes (student_id);
+
 -- Stage history (every stage change + attachment)
 create table if not exists public.stage_history (
   id uuid primary key default uuid_generate_v4(),

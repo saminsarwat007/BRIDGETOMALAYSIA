@@ -9,6 +9,7 @@ const TABS = [
   { id: "invoices", label: "Invoices & Payments" },
   { id: "refunds", label: "Refunds" },
   { id: "contracts", label: "Contract" },
+  { id: "notes", label: "Notes" },
   { id: "details", label: "Details" },
 ];
 
