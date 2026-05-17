@@ -21,14 +21,34 @@
 
 import * as readline from "readline/promises";
 import { stdin as input, stdout as output } from "process";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 
 const rl = readline.createInterface({ input, output });
 
 console.log("\n── Bridge to Malaysia: Google OAuth Token Generator ──\n");
-console.log("Follow the steps in the file header if you haven't yet.\n");
 
-const clientId = (await rl.question("Paste your OAuth Client ID:    ")).trim();
-const clientSecret = (await rl.question("Paste your OAuth Client Secret: ")).trim();
+let clientId, clientSecret;
+
+// Accept the downloaded credentials JSON as an argument:
+//   node scripts/get-google-oauth-token.mjs ~/Downloads/client_secret_xxx.json
+const jsonArg = process.argv[2];
+if (jsonArg) {
+  try {
+    const raw = JSON.parse(readFileSync(resolve(jsonArg), "utf8"));
+    const creds = raw.installed ?? raw.web;
+    if (!creds) throw new Error("Unexpected JSON format");
+    clientId = creds.client_id;
+    clientSecret = creds.client_secret;
+    console.log("✅  Loaded credentials from:", jsonArg);
+  } catch (e) {
+    console.error("❌  Could not read credentials JSON:", e.message);
+    process.exit(1);
+  }
+} else {
+  clientId = (await rl.question("Paste your OAuth Client ID:    ")).trim();
+  clientSecret = (await rl.question("Paste your OAuth Client Secret: ")).trim();
+}
 
 if (!clientId || !clientSecret) {
   console.error("\n❌  Client ID and Secret are required.");

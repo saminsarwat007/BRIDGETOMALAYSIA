@@ -653,9 +653,8 @@ Stage updates, payment approvals, and contract signing details are recorded.
 The system is fully operational end-to-end. The following are the remaining items for future improvement:
 
 - More detailed finance charts (bar/line charts for income trends).
-- Commission entry screen for university commissions (currently entered via Supabase dashboard).
 - Automated email notifications when payments are approved or documents are rejected.
-- More advanced reporting and analytics dashboard.
+- More advanced reporting and analytics dashboard (charts exist; further detail can be added).
 
 ## 21b. Recent Updates (May 2026)
 
@@ -669,6 +668,10 @@ The system is fully operational end-to-end. The following are the remaining item
 | Commission management page added | Full CRUD for commissions with profit-dividing and company balance tracking |
 | Test data seeded | 3 test students with full journey data for testing |
 | All environment variables confirmed in Vercel | Site is fully live and operational |
+| **Google Drive now uses OAuth2 personal account** | Fixed "storage quota exceeded" and OpenSSL errors. Files now upload to the owner's personal Google Drive (15 GB free). No Workspace required. |
+| Analytics charts added | Monthly commission income bar chart and student stage conversion funnel added to the analytics page |
+| Admin student notes | Admins can add private sticky notes per student (e.g. "called parent on May 10") — not visible to students |
+| Document upload always records to database | Even if Google Drive is temporarily unavailable, the document submission is saved so admins can track it |
 
 ---
 

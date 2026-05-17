@@ -30,7 +30,7 @@ What the app replaces:
 | Styling | Tailwind CSS + bespoke design tokens |
 | Auth | Supabase Auth (email/password, admins only) |
 | Database | Supabase Postgres (with RLS + SECURITY DEFINER functions) |
-| File storage | Google Drive (via service account, **not** Supabase Storage) |
+| File storage | Google Drive (via **OAuth2 personal account**, not Supabase Storage) |
 | Email | Resend (`onboarding@resend.dev`, reply-to Gmail) |
 | PDF | `@react-pdf/renderer` (server-rendered to a Node route) |
 | Hosting | Vercel (free) |
@@ -276,9 +276,26 @@ When you (the AI) want to add or change things, follow these patterns:
 ### Required (already configured)
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase project
 - `SUPABASE_SERVICE_ROLE_KEY` — Supabase settings → API → service_role key
-- `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_KEY` — Google Cloud → Service Account
-- `GOOGLE_DRIVE_PARENT_FOLDER_ID` — Drive folder ID shared with service account
+- `GOOGLE_DRIVE_PARENT_FOLDER_ID` — Drive folder ID (the parent "Student details" folder)
 - `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `RESEND_REPLY_TO` — Resend.com
+
+### Google Drive authentication (priority order in `src/lib/google/drive.ts`)
+
+**Priority 1 — OAuth2 personal account (recommended, currently active):**
+- `GOOGLE_OAUTH_CLIENT_ID` — Google Cloud → OAuth 2.0 Client ID
+- `GOOGLE_OAUTH_CLIENT_SECRET` — Google Cloud → OAuth 2.0 Client Secret
+- `GOOGLE_OAUTH_REFRESH_TOKEN` — generated with `node scripts/get-google-oauth-token.mjs`
+- Uses the owner's personal Google account; uploads go into their **personal Drive** (free 15 GB)
+- Generate token once: script prints all 3 values to copy into Vercel
+
+**Priority 2 — Service account JSON base64 (Workspace Shared Drive):**
+- `GOOGLE_SERVICE_ACCOUNT_JSON_B64` — base64-encoded service account JSON
+- Generate with `node scripts/encode-service-account.mjs <path-to-json>`
+- Only works for Workspace Shared Drives (service accounts have no personal Drive storage)
+
+**Priority 3 — Service account separate vars (legacy fallback):**
+- `GOOGLE_SERVICE_ACCOUNT_EMAIL` + `GOOGLE_SERVICE_ACCOUNT_KEY`
+- Prone to OpenSSL key-parsing issues on Vercel/Node 18+; avoid for new setups
 
 ### 🔴 Must set up now
 
@@ -322,14 +339,12 @@ When you (the AI) want to add or change things, follow these patterns:
 4. Set `NEXT_PUBLIC_APP_URL` to the production URL.
 5. Vercel will auto-deploy on every push to `main`.
 
-The Drive service account must be shared on the parent "Student details" folder in Drive — once, in the Drive UI.
+If using OAuth2 (Priority 1), the parent Drive folder must be inside the **same Google account** that generated the refresh token. No extra sharing is needed — the OAuth2 user already owns their Drive.
 
 ---
 
 ## 14. Known gaps / future work
 
-- **Finance charts** — data exists; add Recharts bar/line charts to the finance page.
-- **Commission entry UI** — commissions can currently only be inserted via SQL or the Supabase dashboard.
 - **Email notifications** — `payment confirmed` and `document rejected` templates exist in `src/lib/email/templates.ts` but are not yet wired to admin approve/reject actions.
 - **Upstash Redis** — `UPSTASH_REDIS_REST_URL/TOKEN` not set in Vercel; intake rate limiting falls back to in-memory. Add free Upstash Redis for production safety.
 - **GEMINI_API_KEY** — only set for Production in Vercel, not Preview. Add to Preview environment if needed.
@@ -350,5 +365,9 @@ The Drive service account must be shared on the parent "Student details" folder 
 | May 2026 | Seed script added (`scripts/seed.mjs`) — 3 test students with full data |
 | May 2026 | Commissions page added (`/admin/commissions`) — full CRUD + profit-dividing ledger |
 | May 2026 | Commission profit-dividing: mark divided (date + notes), undo, running company balance |
+| May 2026 | Analytics charts added: monthly commission income bar chart + stage conversion funnel |
+| May 2026 | Admin-only student notes added (`/admin/students/[id]` → Notes tab) |
+| May 2026 | Document upload robustness: pending DB row always inserted even if Drive upload fails |
+| May 2026 | **Google Drive migrated to OAuth2 personal account** — fixed `ERR_OSSL_UNSUPPORTED` and `storage quota exceeded` errors; uses 3 new env vars (`GOOGLE_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN`) |
 
 The SaaS is **fully operational** end-to-end: AI passport scan → onboard student → generate invoice/contract PDF → both parties type-sign → student uploads receipt → admin approves → status visible on tracking page.

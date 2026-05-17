@@ -44,6 +44,12 @@ btmsaas-*.json
 *-adminsdk-*.json
 *service-account*.json
 *service_account*.json
+client_secret_*.json
+
+# stray root files (IDE / personal notes)
+ourbuisnesswhatwedo.md
+"# bencium-innovative-ux-designer - Skill"
+"## Student Application Roadmap"
 
 # local cheat-sheets / personal reference (contain real keys or PII)
 allapi.md
