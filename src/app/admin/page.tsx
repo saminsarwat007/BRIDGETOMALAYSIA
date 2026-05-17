@@ -76,9 +76,13 @@ export default async function AdminOverviewPage() {
         />
         <Stat
           label="Invoiced BDT / MYR"
-          value={`${formatCurrency(totalInvoicedBDT, "BDT")} / ${formatCurrency(totalInvoicedMYR, "MYR")}`}
+          value={
+            <span className="flex flex-col gap-0.5 font-mono text-base sm:text-lg leading-tight">
+              <span>{formatCurrency(totalInvoicedBDT, "BDT")}</span>
+              <span className="text-brand-muted">{formatCurrency(totalInvoicedMYR, "MYR")}</span>
+            </span>
+          }
           icon={<ReceiptText className="h-4 w-4" />}
-          mono
         />
       </section>
 
@@ -159,7 +163,7 @@ function Stat({
   mono,
 }: {
   label: string;
-  value: number | string;
+  value: number | string | React.ReactNode;
   icon?: React.ReactNode;
   href?: string;
   accent?: boolean;

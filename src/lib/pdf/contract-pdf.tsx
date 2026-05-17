@@ -139,8 +139,24 @@ const s = StyleSheet.create({
   finLabel: { fontSize: 10, color: c.ink },
   finValue: { fontSize: 11, fontFamily: "Helvetica-Bold" },
   // Signatures
+  signedStamp: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#16a34a',
+    borderRadius: 4,
+  },
+  signedStampText: {
+    fontSize: 8,
+    fontFamily: 'Helvetica-Bold',
+    color: '#ffffff',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
   signaturesRow: {
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: 36,
     marginTop: 48,
   },
@@ -189,6 +205,9 @@ interface Props {
 
 export function ContractPDF({ contract, student }: Props) {
   const f = contract.field_values as Record<string, any>;
+
+  const isSigned = contract.signed;
+  const signedAt = contract.signed_at ? formatDate(contract.signed_at) : null;
 
   // Field values (with sensible defaults derived from student record)
   const clientName = f.client_name ?? student.full_name;
@@ -395,10 +414,17 @@ export function ContractPDF({ contract, student }: Props) {
         {/* Signatures */}
         <View style={s.signaturesRow} wrap={false}>
           <View style={s.sigBox}>
-            <View style={s.sigLine} />
+            {isSigned && signedAt ? (
+              <View style={s.signedStamp}>
+                <Text style={s.signedStampText}>✓ Signed</Text>
+              </View>
+            ) : null}
+            <View style={[s.sigLine, { marginTop: isSigned ? 24 : 0 }]} />
             <Text style={s.sigLabel}>Client</Text>
             <Text style={s.sigName}>{clientName.toUpperCase()}</Text>
-            <Text style={s.sigRole}>Date: ____________________</Text>
+            <Text style={s.sigRole}>
+              {isSigned && signedAt ? `Signed: ${signedAt}` : "Date: ____________________"}
+            </Text>
           </View>
           <View style={s.sigBox}>
             {signatureImage ? (
