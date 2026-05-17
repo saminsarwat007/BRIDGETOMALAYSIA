@@ -71,6 +71,9 @@ export interface Student {
   referred_by_phone: string | null;
   upload_enabled: boolean;
   whatsapp_group_url: string | null;
+  agency_referred_at: string | null;
+  agency_referred_to: string | null;
+  agency_referred_key: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -150,6 +153,7 @@ export interface CompanyAccount {
   currency: MoneyCurrency;
   opening_balance: number;
   notes: string | null;
+  created_at: string;
   updated_at: string;
 }
 
@@ -190,6 +194,7 @@ export interface Commission {
   university: string;
   amount: number;
   currency: string;
+  company_account_key: CompanyAccountKey | string | null;
   received_date: string | null;
   notes: string | null;
   created_at: string;

@@ -7,8 +7,6 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Finance — Bridge to Malaysia Admin" };
 
 export default async function FinancePage() {
-  let queryErrors: string[] = [];
-  try {
   const supabase = createClient();
   const [invoicesRes, paymentsRes, commissionsRes, accountsRes, refundsRes] = await Promise.all([
     supabase.from("invoices").select("id, total_amount, currency, status, created_at, student_id, invoice_type, students(full_name)"),
@@ -17,24 +15,6 @@ export default async function FinancePage() {
     supabase.from("company_accounts").select("*"),
     supabase.from("refunds").select("id, amount, currency, company_account_key, status, refunded_at, created_at, students(full_name)"),
   ]);
-
-  if (invoicesRes.error) queryErrors.push(`invoices: ${invoicesRes.error.message}`);
-  if (paymentsRes.error) queryErrors.push(`payments: ${paymentsRes.error.message}`);
-  if (commissionsRes.error) queryErrors.push(`commissions: ${commissionsRes.error.message}`);
-  if (accountsRes.error) queryErrors.push(`accounts: ${accountsRes.error.message}`);
-  if (refundsRes.error) queryErrors.push(`refunds: ${refundsRes.error.message}`);
-
-  if (queryErrors.length > 0) {
-    return (
-      <div className="p-8 max-w-2xl">
-        <h1 className="font-display text-2xl text-brand-ink">Finance — Debug</h1>
-        <p className="mt-2 text-sm text-rose-600">Some queries failed:</p>
-        <ul className="mt-2 space-y-1 text-sm font-mono bg-rose-50 p-4 rounded-xl border border-rose-200">
-          {queryErrors.map((e, i) => <li key={i}>{e}</li>)}
-        </ul>
-      </div>
-    );
-  }
 
   const invoices = invoicesRes.data ?? [];
   const payments = (paymentsRes.data ?? []).filter((p: any) => p.status === "approved");
@@ -198,17 +178,6 @@ export default async function FinancePage() {
       </section>
     </div>
   );
-  } catch (err) {
-    return (
-      <div className="p-8 max-w-2xl">
-        <h1 className="font-display text-2xl text-brand-ink">Finance — Error</h1>
-        <p className="mt-2 text-sm text-rose-600">Unexpected error loading finance page:</p>
-        <pre className="mt-2 text-xs font-mono bg-rose-50 p-4 rounded-xl border border-rose-200 whitespace-pre-wrap">
-          {err instanceof Error ? `${err.message}\n${err.stack}` : String(err)}
-        </pre>
-      </div>
-    );
-  }
 }
 
 function accountLabel(key: string | null | undefined) {

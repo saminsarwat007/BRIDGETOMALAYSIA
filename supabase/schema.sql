@@ -339,6 +339,10 @@ drop trigger if exists invoices_set_updated_at on public.invoices;
 create trigger invoices_set_updated_at before update on public.invoices
   for each row execute function public.set_updated_at();
 
+drop trigger if exists company_accounts_set_updated_at on public.company_accounts;
+create trigger company_accounts_set_updated_at before update on public.company_accounts
+  for each row execute function public.set_updated_at();
+
 -- Generate sequential number per scope (e.g., BTM-2026-0042)
 create or replace function public.next_number(p_scope text) returns integer
 language plpgsql as $$
