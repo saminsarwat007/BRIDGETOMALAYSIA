@@ -89,13 +89,6 @@ export async function quickSetStageAction(formData: FormData) {
   if (!parsed.success) throw new Error("Invalid payload");
 
   const supabase = createClient();
-  const adminId = await getCurrentAdminId();
-
-  await supabase.from("stage_history").insert({
-    student_id: parsed.data.student_id,
-    stage: parsed.data.stage,
-    changed_by: adminId,
-  });
 
   const { error } = await supabase
     .from("students")

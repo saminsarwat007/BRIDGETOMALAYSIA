@@ -127,8 +127,8 @@ export function TrackingView({ payload, passport, documents }: Props) {
         </ol>
       </section>
 
-      {/* Documents */}
-      {student.upload_enabled && (
+      {/* Documents — only show when admin has rejected at least one doc (re-upload requested) */}
+      {student.upload_enabled && documents.some((d) => d.status === "rejected") && (
         <section className="mt-16">
           <div className="flex items-baseline justify-between mb-4">
             <h2 className="font-display text-2xl text-brand-ink">Your documents</h2>
