@@ -225,7 +225,7 @@ export function TrackingView({ payload, passport, documents }: Props) {
                     )}
                     {inv.status === "overpaid" && inv.total_paid > inv.total_amount && (
                       <div className="text-xs text-emerald-700 font-medium mt-1">
-                        Overpaid by {formatCurrency(inv.total_paid - inv.total_amount, inv.currency)} — will be credited to next invoice
+                        Overpaid by {formatCurrency(inv.total_paid - inv.total_amount, inv.currency)} — refundable on request
                       </div>
                     )}
                     {inv.status === "partially_paid" && inv.total_paid > 0 && (
