@@ -87,6 +87,10 @@ export default async function TrackingDetailPage({ params }: PageProps) {
           </Link>
         </div>
 
+        {/* DEBUG - REMOVE AFTER */}
+        <pre className="mt-4 text-xs bg-black text-green-400 p-3 rounded overflow-auto">
+          invoices: {JSON.stringify(payload.invoices?.length ?? "undefined")} | contracts: {JSON.stringify(payload.contracts?.length ?? "undefined")} | keys: {JSON.stringify(Object.keys(payload))}
+        </pre>
         <TrackingView payload={payload} passport={passport} documents={documents} />
       </div>
     </main>
