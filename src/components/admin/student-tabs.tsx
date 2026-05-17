@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 
 const TABS = [
   { id: "tracking", label: "Tracking" },
+  { id: "documents", label: "Documents" },
   { id: "invoices", label: "Invoices & Payments" },
   { id: "contracts", label: "Contract" },
   { id: "details", label: "Details" },

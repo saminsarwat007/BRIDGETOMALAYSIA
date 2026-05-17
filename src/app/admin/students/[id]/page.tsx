@@ -6,6 +6,7 @@ import { stageLabel, formatDate, formatDateTime, formatCurrency } from "@/lib/ut
 import { TrackingUpdates } from "@/components/admin/tracking-updates";
 import { StudentInvoices } from "@/components/admin/student-invoices";
 import { StudentContracts } from "@/components/admin/student-contracts";
+import { StudentDocuments } from "@/components/admin/student-documents";
 import { StudentTabs } from "@/components/admin/student-tabs";
 import { AgencyReferralButton } from "@/components/admin/agency-referral-button";
 import { DeleteStudentButton } from "@/components/admin/delete-student-button";
@@ -31,7 +32,7 @@ export default async function StudentDetailPage({ params, searchParams }: PagePr
   const supabase = createClient();
   const tab = searchParams.tab ?? "tracking";
 
-  const [studentRes, historyRes, invoicesRes, paymentsRes, contractsRes] = await Promise.all([
+  const [studentRes, historyRes, invoicesRes, paymentsRes, contractsRes, documentsRes] = await Promise.all([
     supabase.from("students").select("*").eq("id", params.id).maybeSingle(),
     supabase
       .from("stage_history")
@@ -53,6 +54,11 @@ export default async function StudentDetailPage({ params, searchParams }: PagePr
       .select("*")
       .eq("student_id", params.id)
       .order("generated_at", { ascending: false }),
+    supabase
+      .from("documents")
+      .select("*")
+      .eq("student_id", params.id)
+      .order("updated_at", { ascending: false }),
   ]);
 
   const student = studentRes.data;
@@ -62,6 +68,7 @@ export default async function StudentDetailPage({ params, searchParams }: PagePr
   const invoices = invoicesRes.data ?? [];
   const payments = paymentsRes.data ?? [];
   const contracts = contractsRes.data ?? [];
+  const documents = documentsRes.data ?? [];
 
   const totalInvoiced = invoices
     .filter((i: any) => i.status !== "draft" && i.status !== "cancelled")
@@ -165,6 +172,9 @@ export default async function StudentDetailPage({ params, searchParams }: PagePr
       <div className="mt-6">
         {tab === "tracking" && (
           <TrackingUpdates student={student as any} history={history as any} />
+        )}
+        {tab === "documents" && (
+          <StudentDocuments student={student as any} documents={documents as any} />
         )}
         {tab === "invoices" && (
           <StudentInvoices student={student as any} invoices={invoices as any} payments={payments as any} />
