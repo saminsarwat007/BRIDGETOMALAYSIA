@@ -1,12 +1,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { unstable_noStore as noStore } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
 import { TrackingView } from "./tracking-view";
 import { ArrowLeft } from "lucide-react";
 import type { TrackingPayload } from "@/types/database";
 
 export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
 
 interface PageProps {
   params: { passport: string };
@@ -19,6 +21,7 @@ export async function generateMetadata({ params }: PageProps) {
 }
 
 export default async function TrackingDetailPage({ params }: PageProps) {
+  noStore();
   const passport = decodeURIComponent(params.passport).trim();
   if (!passport) notFound();
 

@@ -293,8 +293,17 @@ async function recomputeInvoiceStatus(invoiceId: string) {
 
 export async function deleteInvoiceAction(id: string, studentId: string) {
   const supabase = createClient();
+
+  const { data: student } = await supabase
+    .from("students")
+    .select("passport_no")
+    .eq("id", studentId)
+    .maybeSingle();
+
   const { error } = await supabase.from("invoices").delete().eq("id", id);
   if (error) throw new Error(error.message);
+
   revalidatePath("/admin/invoices");
   revalidatePath(`/admin/students/${studentId}`);
+  if (student?.passport_no) revalidatePath(`/track/${student.passport_no}`);
 }
