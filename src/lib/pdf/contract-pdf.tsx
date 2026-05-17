@@ -7,6 +7,7 @@ import {
   Font,
   Image,
 } from "@react-pdf/renderer";
+import { createElement } from "react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { Contract, Student } from "@/types/database";
 
@@ -401,7 +402,7 @@ export function ContractPDF({ contract, student }: Props) {
           </View>
           <View style={s.sigBox}>
             {signatureImage ? (
-              <Image src={signatureImage} style={s.sigImage} />
+              createElement(Image, { src: signatureImage, style: s.sigImage })
             ) : null}
             <View style={s.sigLine} />
             <Text style={s.sigLabel}>Service Provider</Text>
