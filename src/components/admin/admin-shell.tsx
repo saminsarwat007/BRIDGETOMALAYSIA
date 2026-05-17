@@ -12,6 +12,7 @@ import {
   Users2,
   LayoutDashboard,
   LogOut,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +21,7 @@ const NAV = [
   { href: "/admin/students", label: "Students", icon: Users, match: (p: string) => p.startsWith("/admin/students") },
   { href: "/admin/invoices", label: "Invoices", icon: ReceiptText, match: (p: string) => p.startsWith("/admin/invoices") },
   { href: "/admin/finance", label: "Finance", icon: Wallet, match: (p: string) => p.startsWith("/admin/finance") },
+  { href: "/admin/commissions", label: "Commissions", icon: TrendingUp, match: (p: string) => p.startsWith("/admin/commissions") },
   { href: "/admin/referrals", label: "Referrals", icon: Users2, match: (p: string) => p.startsWith("/admin/referrals") },
 ];
 
