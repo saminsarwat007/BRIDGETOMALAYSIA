@@ -35,6 +35,9 @@ What the app replaces:
 | PDF | `@react-pdf/renderer` (server-rendered to a Node route) |
 | Hosting | Vercel (free) |
 | Fonts | Geist Sans + Geist Mono + Fraunces (display) |
+| AI OCR | Google Gemini 2.5 Flash (passport scanning) |
+| CAPTCHA | Cloudflare Turnstile |
+| Rate limiting | Upstash Redis (fallback to in-memory for dev) |
 
 Everything is free-tier. No paid services.
 
@@ -92,7 +95,12 @@ BRIDGETOMALAYSIA/
 │   │   ├── email/
 │   │   │   ├── resend.ts             ← Resend wrapper, reply-to Gmail
 │   │   │   └── templates.ts          ← HTML email templates (stage change, invoice, etc.)
-│   │   └── pdf/invoice-pdf.tsx       ← @react-pdf/renderer invoice template
+│   │   ├── pdf/invoice-pdf.tsx       ← @react-pdf/renderer invoice template
+│   │   ├── pdf/contract-pdf.tsx      ← Contract PDF template (student-facing)
+│   │   └── ai/gemini.ts              ← Gemini 2.5 Flash — passport OCR extraction
+│   ├── components/
+│   │   ├── passport-scanner.tsx      ← AI passport scan UI (public + admin forms)
+│   │   └── security/turnstile-widget.tsx  ← Cloudflare Turnstile CAPTCHA
 │   ├── components/admin/
 │   │   ├── admin-shell.tsx           ← Sidebar (desktop) + bottom nav (mobile)
 │   │   ├── student-form.tsx          ← Create/edit student form (useFormState)
@@ -104,12 +112,16 @@ BRIDGETOMALAYSIA/
 │       ├── layout.tsx                ← Root layout (fonts, Toaster)
 │       ├── page.tsx                  ← Public marketing landing
 │       ├── login/                    ← Admin sign-in
+│       ├── start/                    ← Public student intake form (multi-step)
+│       │   ├── page.tsx              ← Start page with Turnstile CAPTCHA
+│       │   └── start-form.tsx        ← Multi-step: details → docs → preview → submit
 │       ├── track/                    ← Public student tracking
 │       │   ├── page.tsx              ← Passport lookup landing
 │       │   └── [passport]/
 │       │       ├── page.tsx          ← Server-rendered tracking detail
-│       │       ├── tracking-view.tsx ← Visual timeline + invoices
-│       │       └── receipt-upload-sheet.tsx  ← Mobile-friendly upload sheet
+│       │       ├── tracking-view.tsx ← Visual timeline + invoices + contracts + uploads
+│       │       ├── receipt-upload-sheet.tsx  ← Mobile-friendly receipt upload
+│       │       └── document-upload-sheet.tsx ← Document upload for stage attachments
 │       ├── admin/                    ← Auth-protected admin area
 │       │   ├── layout.tsx            ← Requires auth, renders AdminShell
 │       │   ├── page.tsx              ← Overview dashboard
@@ -120,10 +132,15 @@ BRIDGETOMALAYSIA/
 │       │   └── actions/              ← Server actions
 │       │       ├── students.ts       ← create/update/delete student
 │       │       ├── tracking.ts       ← addStageUpdate, quickSetStage
-│       │       └── invoices.ts       ← createInvoice, recordPayment, approve/reject
+│       │       └── invoices.ts       ← createInvoice, recordPayment, approve/reject, contract CRUD
 │       └── api/
-│           └── public/upload-receipt/route.ts
-│                                     ← Anonymous student receipt upload → Drive
+│           └── public/
+│               ├── intake/route.ts            ← Anonymous student intake submission
+│               ├── upload-receipt/route.ts      ← Anonymous receipt upload → Drive + payment row
+│               ├── extract-passport/route.ts    ← AI passport OCR (Gemini 2.5 Flash)
+│               ├── invoice-pdf/route.ts         ← Public invoice PDF by passport + invoice ID
+│               ├── contract-pdf/route.ts        ← Public contract PDF by passport + contract ID
+│               └── sign-contract/route.ts       ← Student e-signing (records signed_at + signed_ip)
 ├── .env.local                        ← Secrets (gitignored)
 ├── .env.example                      ← Template
 └── package.json
@@ -138,11 +155,11 @@ See `supabase/schema.sql` for the authoritative schema. Tables:
 | Table | Purpose |
 |-------|---------|
 | `profiles` | Admin users (auto-created from `auth.users` via trigger) |
-| `students` | Core record per student |
+| `students` | Core record per student (`whatsapp_group_url`, `agency_referred_at`, `agency_referred_to`) |
 | `applications` | Optional multi-university apps per student |
 | `documents` | Per-student doc checklist (passport, SSC, etc.) |
-| `contracts` | Generated contracts (editable `field_values` JSONB) |
-| `invoices` | Editable invoices (`line_items`, `field_values` JSONB) |
+| `contracts` | Generated contracts (`signed`, `signed_at`, `signed_ip`, `field_values` JSONB) |
+| `invoices` | Editable invoices (`line_items`, `field_values` JSONB, `status` enum) |
 | `payments` | Each payment, including student-uploaded receipts |
 | `transactions` | Ledger (kept loose for now; payments are the source of truth) |
 | `referrals` | Who referred whom |
@@ -163,7 +180,7 @@ RLS: all admin tables require `auth.role() = 'authenticated'`.
 - Admins are created manually in Supabase → Authentication → Users.
 - Sign in via `/login` (email/password).
 - Middleware (`src/middleware.ts`) checks for session and redirects to `/login` for any path that isn't public.
-- Public paths: `/`, `/track*`, `/login`, `/api/public/*`.
+- **Public paths**: `/`, `/track/*`, `/start`, `/login`, `/api/public/*` (intake, upload-receipt, extract-passport, invoice-pdf, contract-pdf, sign-contract).
 
 ---
 
@@ -181,11 +198,33 @@ RLS: all admin tables require `auth.role() = 'authenticated'`.
 6. Admin approves/rejects from the student's invoice tab. Approval recomputes `invoices.status`:
    - `paid` if approved payments == total
    - `partially_paid` if < total
-   - `overpaid` if > total (excess automatically becomes a refund-owed amount in the future ledger work)
+   - `overpaid` if > total (excess shown to student on tracking page as "will be credited to next invoice")
+
+## 8. Contracts & e-signing
+
+1. Admin creates a contract from `/admin/students/[id]` → generates a PDF via `@react-pdf/renderer` → uploaded to Drive `Contracts` subfolder.
+2. Student sees contract card on `/track/{passport}` with "View contract" and "Sign contract" buttons.
+3. Student clicks "Sign contract" → POST to `/api/public/sign-contract` with IP capture.
+4. DB records `signed=true`, `signed_at=now()`, `signed_ip=client_ip`.
+5. Contract PDF shows "SIGNED" stamp with date. Admin and student can download the signed PDF anytime.
+
+## 9. AI passport scanner
+
+1. Student or admin uploads a passport photo in the intake form or admin student form.
+2. Image sent to `/api/public/extract-passport` → Gemini 2.5 Flash extracts 14 fields (name, passport no, DOB, address, phone, father/mother name, etc.).
+3. Extracted fields auto-fill the form (full_name, passport_no, address, phone).
+4. Requires `GEMINI_API_KEY` env var. Get free key at https://aistudio.google.com/apikey.
+
+## 10. WhatsApp groups & student communication
+
+- Each student can have a dedicated `whatsapp_group_url` stored on their record (set in admin form).
+- If set, the tracking page shows "Open your WhatsApp group" linking directly to the group.
+- If not set, falls back to generic support WhatsApp number.
+- Agency referral: admin can mark a student as "forwarded to agency" with timestamp + agency name.
 
 ---
 
-## 8. Common modification patterns
+## 11. Common modification patterns
 
 When you (the AI) want to add or change things, follow these patterns:
 
@@ -208,7 +247,7 @@ When you (the AI) want to add or change things, follow these patterns:
 
 ### Change the contract or invoice PDF design
 - Invoice: `src/lib/pdf/invoice-pdf.tsx` — pure `@react-pdf/renderer` JSX.
-- Contract: not yet implemented; would go in `src/lib/pdf/contract-pdf.tsx` following the same pattern.
+- Contract: `src/lib/pdf/contract-pdf.tsx` — same pattern.
 
 ### Change email content
 - Templates: `src/lib/email/templates.ts`. All use inline-styled HTML for email-client compatibility.
@@ -219,20 +258,54 @@ When you (the AI) want to add or change things, follow these patterns:
 
 ---
 
-## 9. Environment variables
+## 12. Environment variables & setup
 
-See `.env.example` for the canonical list. The most-forgotten ones:
+### Required (already configured)
+- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase project
+- `SUPABASE_SERVICE_ROLE_KEY` — Supabase settings → API → service_role key
+- `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_KEY` — Google Cloud → Service Account
+- `GOOGLE_DRIVE_PARENT_FOLDER_ID` — Drive folder ID shared with service account
+- `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `RESEND_REPLY_TO` — Resend.com
 
-- `GOOGLE_SERVICE_ACCOUNT_KEY` must be the **full PEM-formatted private key** with literal `\n` escape sequences (we replace them at runtime).
-- `RESEND_FROM_EMAIL` should stay as `onboarding@resend.dev` unless you verify a custom domain in Resend.
+### 🔴 Must set up now
+
+#### Cloudflare Turnstile (CAPTCHA on /start)
+1. Go to **https://dash.cloudflare.com** → Turnstile → Add site
+2. Add domains: `localhost` (for dev) AND your production domain (e.g., `bridgetomalaysia.vercel.app`)
+3. Widget mode: **Managed**
+4. Copy keys:
+   - `NEXT_PUBLIC_TURNSTILE_SITE_KEY` = Site key
+   - `TURNSTILE_SECRET_KEY` = Secret key
+5. Add both to **Vercel → Settings → Environment Variables**
+
+> **Quick test** (no account needed): Use Cloudflare's test keys:
+> - `NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA`
+> - `TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA`
+> These **always pass** — good for dev. Replace with real keys before going live.
+
+#### Upstash Redis (rate limiting on /api/public/intake)
+1. Go to **https://upstash.com** → Sign up (free tier: 10k commands/day)
+2. Create a **Redis database** (Global or Regional — either is fine)
+3. Go to database page → **REST API** tab
+4. Copy:
+   - `UPSTASH_REDIS_REST_URL` = REST API URL
+   - `UPSTASH_REDIS_REST_TOKEN` = REST API Token
+5. Add both to **Vercel → Settings → Environment Variables**
+
+> If both are empty, the server falls back to an **in-memory rate limiter** — fine for local dev, NOT safe for production serverless (each instance has its own bucket).
+
+#### Google Gemini (AI passport scanner)
+1. Go to **https://aistudio.google.com/apikey**
+2. Create API key (free tier: generous daily quota)
+3. Add `GEMINI_API_KEY` to Vercel env vars
 
 ---
 
-## 10. Deploying
+## 13. Deploying
 
 1. Push to GitHub (`saminsarwat007/BRIDGETOMALAYSIA`).
 2. Connect the repo to Vercel.
-3. Add all env vars from `.env.local` to Vercel → Settings → Environment Variables.
+3. Add **all** env vars from `.env.local` to Vercel → Settings → Environment Variables.
 4. Set `NEXT_PUBLIC_APP_URL` to the production URL.
 5. Vercel will auto-deploy on every push to `main`.
 
@@ -240,14 +313,14 @@ The Drive service account must be shared on the parent "Student details" folder 
 
 ---
 
-## 11. Known gaps / future work
+## 14. Known gaps / future work
 
 These were scoped down from the original plan to ship faster:
 
-- Contract PDF generation is **not yet implemented**; the schema and field-value JSONB are ready.
 - Document checklist UI (`/admin/students/[id]?tab=documents`) is not built; the `documents` table is ready.
 - Finance dashboard is minimal (no charts yet); the data is there to add Recharts views.
 - Commission entry UI is not built; commissions can currently only be inserted via SQL.
 - Email notifications for `payment confirmed` and `document rejected` are templated but not yet wired to admin actions.
+- Refund/ledger UI for overpaid amounts is not built; overpayment is shown to students but not tracked as a formal credit balance.
 
-These are intentionally scoped — the SaaS is **already useful** for end-to-end: onboard student → generate invoice PDF → email it → student uploads receipt to Drive → admin approves payment → status visible on student tracking page.
+The SaaS is **already useful** for end-to-end: AI passport scan → onboard student → generate invoice/contract PDF → student signs contract → uploads receipt → admin approves → status visible on tracking page.
