@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { agencyForUniversity, agencyIsSendable, findAgencyByKey } from "@/lib/agencies";
+import { agencyForUniversity, findAgencyByKey } from "@/lib/agencies";
 import {
   buildAgencyReferralEmail,
   type AgencyReferralEmail,
@@ -84,7 +84,8 @@ export async function previewAgencyReferral(studentId: string): Promise<PreviewR
  * student row so the admin UI can show "Sent on …".
  */
 export async function sendAgencyReferral(
-  studentId: string
+  studentId: string,
+  recipientOverride?: string
 ): Promise<{ ok: boolean; error?: string; sentTo?: string }> {
   const supabase = createClient();
   const { data: student, error } = await supabase
@@ -106,14 +107,18 @@ export async function sendAgencyReferral(
       error: `No agency mapped for "${student.university}". Add it in src/lib/agencies.ts.`,
     };
   }
-  if (!agencyIsSendable(agency)) {
+  const recipient = recipientOverride?.trim() || agency.email;
+  if (!/\S+@\S+\.\S+/.test(recipient)) {
     return {
       ok: false,
-      error: `Agency "${agency.name}" has no email configured. Update src/lib/agencies.ts.`,
+      error: `Agency "${agency.name}" has no valid recipient email.`,
     };
   }
 
-  const built = buildAgencyReferralEmail(student, agency);
+  const built = {
+    ...buildAgencyReferralEmail(student, agency),
+    to: recipient,
+  };
   if (!student.drive_folder_url) {
     return {
       ok: false,
@@ -138,13 +143,13 @@ export async function sendAgencyReferral(
     .from("students")
     .update({
       agency_referred_at: new Date().toISOString(),
-      agency_referred_to: agency.email,
+      agency_referred_to: recipient,
       agency_referred_key: agency.key,
     })
     .eq("id", studentId);
 
   revalidatePath(`/admin/students/${studentId}`);
-  return { ok: true, sentTo: agency.email };
+  return { ok: true, sentTo: recipient };
 }
 
 /** Sanity helper for any caller that wants the configured agency record. */

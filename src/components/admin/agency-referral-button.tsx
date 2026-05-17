@@ -47,6 +47,7 @@ export function AgencyReferralButton({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<PreviewState>({ loading: false, ok: false });
+  const [recipientEmail, setRecipientEmail] = useState("");
   const [isSending, startSending] = useTransition();
 
   async function openModal() {
@@ -66,6 +67,7 @@ export function AgencyReferralButton({
       replyTo: result.replyTo,
       fromIsSandbox: result.fromIsSandbox,
     });
+    setRecipientEmail(result.email?.to ?? result.agency?.email ?? "");
   }
 
   function close() {
@@ -74,7 +76,7 @@ export function AgencyReferralButton({
 
   function send() {
     startSending(async () => {
-      const r = await sendAgencyReferral(studentId);
+      const r = await sendAgencyReferral(studentId, recipientEmail);
       if (!r.ok) {
         toast.error(r.error ?? "Failed to send");
         return;
@@ -153,13 +155,18 @@ export function AgencyReferralButton({
                       </Row>
                     )}
                     <Row label="To">
-                      <span className="font-mono">
-                        {preview.agency.name} &lt;
-                        {preview.email.to || (
-                          <span className="text-rose-600">no email configured</span>
-                        )}
-                        &gt;
-                      </span>
+                      <div className="flex-1">
+                        <input
+                          type="email"
+                          value={recipientEmail}
+                          onChange={(e) => setRecipientEmail(e.target.value)}
+                          placeholder="agency@example.com"
+                          className="input-paper font-mono"
+                        />
+                        <p className="mt-1 text-xs text-brand-muted">
+                          Send to {preview.agency.name}. You can change this for one-time forwarding.
+                        </p>
+                      </div>
                     </Row>
                     {preview.email.cc && preview.email.cc.length > 0 && (
                       <Row label="CC">
@@ -258,7 +265,7 @@ export function AgencyReferralButton({
                   isSending ||
                   preview.loading ||
                   !preview.ok ||
-                  !preview.email?.to
+                  !/\S+@\S+\.\S+/.test(recipientEmail)
                 }
                 className="btn-gold"
               >
@@ -268,7 +275,7 @@ export function AgencyReferralButton({
                   </>
                 ) : (
                   <>
-                    <Mail className="h-4 w-4" /> Send to {preview.agency?.name ?? "agency"}
+                    <Mail className="h-4 w-4" /> Send to agency
                   </>
                 )}
               </button>
