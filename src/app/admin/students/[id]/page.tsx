@@ -11,6 +11,7 @@ import { StudentRefunds } from "@/components/admin/student-refunds";
 import { StudentNotes } from "@/components/admin/student-notes";
 import { StudentTabs } from "@/components/admin/student-tabs";
 import { AgencyReferralButton } from "@/components/admin/agency-referral-button";
+import { UploadToggleButton } from "@/components/admin/upload-toggle-button";
 import { DeleteStudentButton } from "@/components/admin/delete-student-button";
 
 export const dynamic = "force-dynamic";
@@ -149,6 +150,10 @@ export default async function StudentDetailPage({ params, searchParams }: PagePr
                 <Eye className="h-4 w-4" /> Preview student view
               </Link>
             )}
+            <UploadToggleButton
+              studentId={student.id}
+              uploadEnabled={student.upload_enabled ?? false}
+            />
             <AgencyReferralButton
               studentId={student.id}
               agencyReferredAt={student.agency_referred_at ?? null}

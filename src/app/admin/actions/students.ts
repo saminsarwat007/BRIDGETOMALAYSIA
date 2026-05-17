@@ -110,6 +110,12 @@ export async function updateStudentAction(
   return { ok: true, id };
 }
 
+export async function toggleUploadEnabledAction(id: string, enabled: boolean) {
+  const supabase = createClient();
+  await supabase.from("students").update({ upload_enabled: enabled }).eq("id", id);
+  revalidatePath(`/admin/students/${id}`);
+}
+
 export async function deleteStudentAction(id: string) {
   const supabase = createClient();
   const { error } = await supabase.from("students").delete().eq("id", id);
