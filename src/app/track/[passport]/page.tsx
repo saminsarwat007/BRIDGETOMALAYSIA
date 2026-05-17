@@ -23,31 +23,15 @@ export default async function TrackingDetailPage({ params }: PageProps) {
   if (!passport) notFound();
 
   const supabase = createServiceClient();
-  const { data, error } = await supabase.rpc("get_tracking_by_passport", {
-    p_passport: passport,
-  });
 
-  if (error) {
-    console.error("tracking lookup error", error);
-  }
+  // Look up student directly (service role bypasses RLS)
+  const { data: student } = await supabase
+    .from("students")
+    .select("id, full_name, current_stage, university, campus, intake, upload_enabled, whatsapp_group_url")
+    .eq("passport_no", passport)
+    .maybeSingle();
 
-  const payload = data as TrackingPayload | null;
-
-  let documents: Array<{
-    doc_type: string;
-    status: "pending" | "received" | "rejected";
-    rejection_reason: string | null;
-    drive_link: string | null;
-  }> = [];
-  if (payload?.student?.id) {
-    const { data: docs } = await supabase
-      .from("documents")
-      .select("doc_type, status, rejection_reason, drive_link")
-      .eq("student_id", payload.student.id);
-    documents = docs ?? [];
-  }
-
-  if (!payload) {
+  if (!student) {
     return (
       <main className="min-h-screen paper">
         <div className="mx-auto max-w-2xl px-6 pt-12 pb-24">
@@ -72,6 +56,57 @@ export default async function TrackingDetailPage({ params }: PageProps) {
     );
   }
 
+  // Fetch all related data directly with service role (bypasses RLS)
+  const [
+    { data: invoicesRaw },
+    { data: stageHistoryRaw },
+    { data: contractsRaw },
+    { data: docsRaw },
+  ] = await Promise.all([
+    supabase
+      .from("invoices")
+      .select("id, invoice_number, invoice_type, total_amount, currency, status, due_date, created_at")
+      .eq("student_id", student.id)
+      .neq("status", "draft")
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("stage_history")
+      .select("id, stage, comment, attachment_label, attachment_kind, attachment_drive_link, changed_at")
+      .eq("student_id", student.id)
+      .order("changed_at", { ascending: false }),
+    supabase
+      .from("contracts")
+      .select("id, contract_number, signed, signed_at, generated_at")
+      .eq("student_id", student.id)
+      .order("generated_at", { ascending: false }),
+    supabase
+      .from("documents")
+      .select("doc_type, status, rejection_reason, drive_link")
+      .eq("student_id", student.id),
+  ]);
+
+  // Compute total_paid per invoice
+  const invoices = await Promise.all(
+    (invoicesRaw ?? []).map(async (inv) => {
+      const { data: pays } = await supabase
+        .from("payments")
+        .select("amount_received")
+        .eq("invoice_id", inv.id)
+        .eq("status", "approved");
+      const total_paid = (pays ?? []).reduce((s, p) => s + Number(p.amount_received), 0);
+      return { ...inv, total_paid };
+    })
+  );
+
+  const payload: TrackingPayload = {
+    student,
+    invoices,
+    stage_history: stageHistoryRaw ?? [],
+    contracts: contractsRaw ?? [],
+  };
+
+  const documents = docsRaw ?? [];
+
   return (
     <main className="min-h-screen paper">
       <div className="mx-auto max-w-4xl px-5 sm:px-6 pt-8 pb-24">
@@ -87,10 +122,6 @@ export default async function TrackingDetailPage({ params }: PageProps) {
           </Link>
         </div>
 
-        {/* DEBUG - REMOVE AFTER */}
-        <pre className="mt-4 text-xs bg-black text-green-400 p-3 rounded overflow-auto">
-          invoices: {JSON.stringify(payload.invoices?.length ?? "undefined")} | contracts: {JSON.stringify(payload.contracts?.length ?? "undefined")} | keys: {JSON.stringify(Object.keys(payload))}
-        </pre>
         <TrackingView payload={payload} passport={passport} documents={documents} />
       </div>
     </main>
