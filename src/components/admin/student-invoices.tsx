@@ -301,6 +301,18 @@ function InvoiceCard({
       toast.success("Invoice sent");
     });
   }
+  async function markPaid() {
+    startTransition(async () => {
+      await updateInvoiceAction(invoice.id, { status: "paid" });
+      toast.success("Marked as paid");
+    });
+  }
+  async function markUnpaid() {
+    startTransition(async () => {
+      await updateInvoiceAction(invoice.id, { status: "sent" });
+      toast.success("Marked as unpaid");
+    });
+  }
   async function remove() {
     if (!confirm("Delete this invoice and all its payments?")) return;
     startTransition(async () => {
@@ -368,6 +380,24 @@ function InvoiceCard({
             className="inline-flex items-center gap-1.5 rounded-md border border-brand-stone bg-brand-paper px-3 py-1.5 text-xs font-medium text-brand-ink hover:bg-brand-cream transition"
           >
             <Send className="h-3.5 w-3.5" /> Mark sent
+          </button>
+        )}
+        {invoice.status !== "draft" && invoice.status !== "paid" && invoice.status !== "cancelled" && (
+          <button
+            onClick={markPaid}
+            disabled={isPending}
+            className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100 transition"
+          >
+            Mark paid
+          </button>
+        )}
+        {invoice.status === "paid" && (
+          <button
+            onClick={markUnpaid}
+            disabled={isPending}
+            className="inline-flex items-center gap-1.5 rounded-md border border-brand-stone bg-brand-paper px-3 py-1.5 text-xs font-medium text-brand-muted hover:bg-brand-cream transition"
+          >
+            Mark unpaid
           </button>
         )}
         <button

@@ -131,7 +131,7 @@ export async function createInvoiceAction(input: InvoiceInput) {
 
 export async function updateInvoiceAction(
   id: string,
-  input: Partial<InvoiceInput> & { status?: string }
+  input: Partial<Omit<InvoiceInput, "status">> & { status?: "draft" | "sent" | "partially_paid" | "paid" | "overpaid" | "cancelled" }
 ) {
   const supabase = createClient();
   const patch: Record<string, unknown> = {};
@@ -158,8 +158,13 @@ export async function updateInvoiceAction(
   const { error } = await supabase.from("invoices").update(patch).eq("id", id);
   if (error) throw new Error(error.message);
 
+  const { data: student } = inv?.student_id
+    ? await supabase.from("students").select("passport_no").eq("id", inv.student_id).maybeSingle()
+    : { data: null };
+
   revalidatePath("/admin/invoices");
   if (inv?.student_id) revalidatePath(`/admin/students/${inv.student_id}`);
+  if (student?.passport_no) revalidatePath(`/track/${student.passport_no}`);
   return { ok: true };
 }
 
