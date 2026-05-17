@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Upload, UploadOff } from "lucide-react";
+import { Upload, Ban } from "lucide-react";
 import { toggleUploadEnabledAction } from "@/app/admin/actions/students";
 
 export function UploadToggleButton({
@@ -33,7 +33,7 @@ export function UploadToggleButton({
           : "border-brand-stone bg-brand-cream text-brand-muted hover:bg-brand-stone/30"
       }`}
     >
-      {enabled ? <Upload className="h-3.5 w-3.5" /> : <UploadOff className="h-3.5 w-3.5" />}
+      {enabled ? <Upload className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
       {enabled ? "Uploads on" : "Uploads off"}
     </button>
   );
