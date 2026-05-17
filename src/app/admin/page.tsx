@@ -29,7 +29,12 @@ export default async function AdminOverviewPage() {
     count: students.filter((st) => st.current_stage === s.value).length,
   }));
 
-  const totalInvoiced = invoices.reduce((sum, i) => sum + Number(i.total_amount ?? 0), 0);
+  const totalInvoicedBDT = invoices
+    .filter((i) => i.currency === "BDT")
+    .reduce((sum, i) => sum + Number(i.total_amount ?? 0), 0);
+  const totalInvoicedMYR = invoices
+    .filter((i) => i.currency === "MYR")
+    .reduce((sum, i) => sum + Number(i.total_amount ?? 0), 0);
   const unpaidCount = invoices.filter((i) => i.status === "sent" || i.status === "partially_paid").length;
 
   return (
@@ -65,8 +70,8 @@ export default async function AdminOverviewPage() {
           href="/admin/invoices?filter=pending-receipts"
         />
         <Stat
-          label="Total invoiced (BDT)"
-          value={formatCurrency(totalInvoiced, "BDT").replace(/^BDT\s?/, "৳")}
+          label="Invoiced BDT / MYR"
+          value={`${formatCurrency(totalInvoicedBDT, "BDT")} / ${formatCurrency(totalInvoicedMYR, "MYR")}`}
           icon={<ReceiptText className="h-4 w-4" />}
           mono
         />

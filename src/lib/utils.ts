@@ -1,5 +1,26 @@
-import { clsx, type ClassValue } from "clsx";
+import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+
+export const MONEY_CURRENCIES = ["BDT", "MYR"] as const;
+
+export const COMPANY_ACCOUNTS = [
+  {
+    key: "bangladesh_bdt",
+    label: "Bangladesh Account",
+    country: "Bangladesh",
+    currency: "BDT",
+  },
+  {
+    key: "malaysia_myr",
+    label: "Malaysia Account",
+    country: "Malaysia",
+    currency: "MYR",
+  },
+] as const;
+
+export function defaultAccountForCurrency(currency: string | null | undefined) {
+  return currency === "MYR" ? "malaysia_myr" : "bangladesh_bdt";
+}
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

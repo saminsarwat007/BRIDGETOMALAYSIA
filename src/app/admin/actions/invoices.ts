@@ -5,7 +5,7 @@ import { z } from "zod";
 import { createClient, getCurrentAdminId } from "@/lib/supabase/server";
 import { sendEmail } from "@/lib/email/resend";
 import { emailTemplates } from "@/lib/email/templates";
-import { buildInvoiceFilename, formatCurrency } from "@/lib/utils";
+import { buildInvoiceFilename, defaultAccountForCurrency, formatCurrency } from "@/lib/utils";
 import { renderAndUploadPdf } from "@/lib/pdf/pdf-to-drive";
 import { InvoicePDF } from "@/lib/pdf/invoice-pdf";
 import React from "react";
@@ -19,7 +19,7 @@ const LineItemSchema = z.object({
 const InvoiceSchema = z.object({
   student_id: z.string().uuid(),
   invoice_type: z.string().min(1),
-  currency: z.string().default("BDT"),
+  currency: z.enum(["BDT", "MYR"]).default("BDT"),
   due_date: z.string().optional().nullable(),
   line_items: z.array(LineItemSchema).min(1),
   field_values: z.record(z.unknown()).default({}),
@@ -158,6 +158,8 @@ export async function updateInvoiceAction(
 const PaymentSchema = z.object({
   invoice_id: z.string().uuid(),
   amount_received: z.coerce.number().min(0),
+  currency: z.enum(["BDT", "MYR"]).default("BDT"),
+  company_account_key: z.enum(["bangladesh_bdt", "malaysia_myr"]).optional(),
   payment_date: z.string(),
   payment_method: z.string().optional().nullable(),
   bank_reference: z.string().optional().nullable(),
@@ -179,10 +181,19 @@ export async function recordPaymentAction(formData: FormData) {
     .single();
   if (invErr || !invoice) throw new Error("Invoice not found");
 
+  if (parsed.currency !== invoice.currency) {
+    throw new Error(`Payment currency must match invoice currency (${invoice.currency})`);
+  }
+
+  const companyAccountKey =
+    parsed.company_account_key ?? defaultAccountForCurrency(parsed.currency);
+
   const { error: payErr } = await supabase.from("payments").insert({
     invoice_id: parsed.invoice_id,
     student_id: invoice.student_id,
     amount_received: parsed.amount_received,
+    currency: parsed.currency,
+    company_account_key: companyAccountKey,
     payment_date: parsed.payment_date,
     payment_method: parsed.payment_method || null,
     bank_reference: parsed.bank_reference || null,
@@ -246,16 +257,17 @@ async function recomputeInvoiceStatus(invoiceId: string) {
   const supabase = createClient();
   const { data: invoice } = await supabase
     .from("invoices")
-    .select("id, total_amount")
+    .select("id, total_amount, currency")
     .eq("id", invoiceId)
     .single();
   if (!invoice) return;
 
   const { data: pays } = await supabase
     .from("payments")
-    .select("amount_received, status")
+    .select("amount_received, status, currency")
     .eq("invoice_id", invoiceId)
-    .eq("status", "approved");
+    .eq("status", "approved")
+    .eq("currency", invoice.currency);
 
   const totalPaid = (pays ?? []).reduce(
     (s, p) => s + Number(p.amount_received),

@@ -177,6 +177,8 @@ create table if not exists public.payments (
   invoice_id uuid not null references public.invoices(id) on delete cascade,
   student_id uuid not null references public.students(id) on delete cascade,
   amount_received numeric(12,2) not null,
+  currency text default 'BDT',
+  company_account_key text default 'bangladesh_bdt',
   payment_date date not null default current_date,
   payment_method text,
   bank_reference text,
@@ -202,12 +204,31 @@ create table if not exists public.transactions (
   payment_id uuid references public.payments(id) on delete set null,
   type text not null check (type in ('payment', 'refund', 'adjustment')),
   amount numeric(12,2) not null,
+  currency text default 'BDT',
+  company_account_key text default 'bangladesh_bdt',
   occurred_on date not null default current_date,
   notes text,
   created_at timestamptz not null default now()
 );
 
 create index if not exists transactions_student_idx on public.transactions (student_id);
+
+-- Company bank/cash accounts
+create table if not exists public.company_accounts (
+  key text primary key,
+  label text not null,
+  country text not null,
+  currency text not null check (currency in ('BDT', 'MYR')),
+  opening_balance numeric(12,2) not null default 0,
+  notes text,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.company_accounts (key, label, country, currency, opening_balance)
+values
+  ('bangladesh_bdt', 'Bangladesh Account', 'Bangladesh', 'BDT', 0),
+  ('malaysia_myr', 'Malaysia Account', 'Malaysia', 'MYR', 0)
+on conflict (key) do nothing;
 
 -- Referrals
 create table if not exists public.referrals (
@@ -232,6 +253,7 @@ create table if not exists public.commissions (
   university text not null,
   amount numeric(12,2) not null,
   currency text default 'MYR',
+  company_account_key text,
   received_date date,
   notes text,
   created_at timestamptz not null default now()
@@ -326,6 +348,7 @@ alter table public.contracts enable row level security;
 alter table public.invoices enable row level security;
 alter table public.payments enable row level security;
 alter table public.transactions enable row level security;
+alter table public.company_accounts enable row level security;
 alter table public.referrals enable row level security;
 alter table public.commissions enable row level security;
 alter table public.stage_history enable row level security;
@@ -343,8 +366,8 @@ declare t text;
 begin
   foreach t in array array[
     'students','applications','documents','contracts','invoices',
-    'payments','transactions','referrals','commissions','stage_history',
-    'numbering_counters'
+    'payments','transactions','company_accounts','referrals','commissions',
+    'stage_history','numbering_counters'
   ] loop
     execute format($f$drop policy if exists "%s_admin_all" on public.%I$f$, t, t);
     execute format($f$create policy "%s_admin_all" on public.%I
@@ -429,6 +452,7 @@ declare
   v_student public.students;
   v_invoice public.invoices;
   v_payment_id uuid;
+  v_account_key text;
 begin
   select * into v_student from public.students where passport_no = p_passport;
   if v_student.id is null then
@@ -444,11 +468,17 @@ begin
     return jsonb_build_object('ok', false, 'error', 'invoice_not_found');
   end if;
 
+  if coalesce(v_invoice.currency, 'BDT') = 'MYR' then
+    v_account_key := 'malaysia_myr';
+  else
+    v_account_key := 'bangladesh_bdt';
+  end if;
+
   insert into public.payments(
-    invoice_id, student_id, amount_received, payment_method, description,
+    invoice_id, student_id, amount_received, currency, company_account_key, payment_method, description,
     receipt_drive_file_id, receipt_drive_link, source, status
   ) values (
-    p_invoice_id, v_student.id, p_amount, p_method, p_description,
+    p_invoice_id, v_student.id, p_amount, v_invoice.currency, v_account_key, p_method, p_description,
     p_receipt_drive_file_id, p_receipt_drive_link, 'student', 'pending'
   ) returning id into v_payment_id;
 

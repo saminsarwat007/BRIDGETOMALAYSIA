@@ -27,6 +27,8 @@ export type InvoiceStatus =
 
 export type PaymentSource = "admin" | "student";
 export type PaymentStatus = "pending" | "approved" | "rejected";
+export type MoneyCurrency = "BDT" | "MYR";
+export type CompanyAccountKey = "bangladesh_bdt" | "malaysia_myr";
 
 export type AttachmentKind =
   | "offer_letter"
@@ -125,6 +127,8 @@ export interface Payment {
   invoice_id: string;
   student_id: string;
   amount_received: number;
+  currency: MoneyCurrency | string | null;
+  company_account_key: CompanyAccountKey | string | null;
   payment_date: string;
   payment_method: string | null;
   bank_reference: string | null;
@@ -136,6 +140,16 @@ export interface Payment {
   recorded_by: string | null;
   notes: string | null;
   created_at: string;
+}
+
+export interface CompanyAccount {
+  key: CompanyAccountKey | string;
+  label: string;
+  country: string;
+  currency: MoneyCurrency;
+  opening_balance: number;
+  notes: string | null;
+  updated_at: string;
 }
 
 export interface Referral {

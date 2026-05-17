@@ -19,6 +19,8 @@ import {
   formatDate,
   INVOICE_TYPES,
   buildInvoiceFilename,
+  COMPANY_ACCOUNTS,
+  defaultAccountForCurrency,
 } from "@/lib/utils";
 import type { Student, Invoice, Payment } from "@/types/database";
 import {
@@ -86,7 +88,7 @@ function InvoiceComposer({
 }) {
   const [type, setType] = useState<string>(INVOICE_TYPES[0]);
   const [customType, setCustomType] = useState("");
-  const [currency, setCurrency] = useState("BDT");
+  const [currency, setCurrency] = useState<"BDT" | "MYR">("BDT");
   const [dueDate, setDueDate] = useState("");
   const [items, setItems] = useState([{ description: "", amount: 0, quantity: 1 }]);
   const [status, setStatus] = useState<"draft" | "sent">("draft");
@@ -163,10 +165,9 @@ function InvoiceComposer({
         )}
         <label>
           <span className="text-sm font-medium text-brand-ink">Currency</span>
-          <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="input-paper mt-1.5">
+          <select value={currency} onChange={(e) => setCurrency(e.target.value as "BDT" | "MYR")} className="input-paper mt-1.5">
             <option value="BDT">BDT (৳)</option>
             <option value="MYR">MYR (RM)</option>
-            <option value="USD">USD ($)</option>
           </select>
         </label>
         <label>
@@ -309,7 +310,7 @@ function InvoiceCard({
   }
 
   const totalPaid = payments
-    .filter((p) => p.status === "approved")
+    .filter((p) => p.status === "approved" && (p.currency ?? invoice.currency) === invoice.currency)
     .reduce((s, p) => s + Number(p.amount_received), 0);
   const remaining = Number(invoice.total_amount) - totalPaid;
 
@@ -399,6 +400,7 @@ function InvoiceCard({
           className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-2 border-t border-brand-stone pt-4"
         >
           <input type="hidden" name="invoice_id" value={invoice.id} />
+          <input type="hidden" name="currency" value={invoice.currency} />
           <input
             type="number"
             step="0.01"
@@ -425,10 +427,21 @@ function InvoiceCard({
             placeholder="Ref / Trx ID"
             className="input-paper font-mono"
           />
+          <select
+            name="company_account_key"
+            defaultValue={defaultAccountForCurrency(invoice.currency)}
+            className="input-paper sm:col-span-2"
+          >
+            {COMPANY_ACCOUNTS.filter((a) => a.currency === invoice.currency).map((account) => (
+              <option key={account.key} value={account.key}>
+                {account.label} ({account.currency})
+              </option>
+            ))}
+          </select>
           <input
             name="receipt_drive_link"
             placeholder="Optional Drive link"
-            className="input-paper sm:col-span-3"
+            className="input-paper sm:col-span-2"
           />
           <button type="submit" disabled={isPending} className="btn-gold">
             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
@@ -443,12 +456,13 @@ function InvoiceCard({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-mono">
-                    {formatCurrency(p.amount_received, invoice.currency)}
+                    {formatCurrency(p.amount_received, p.currency ?? invoice.currency)}
                   </span>
                   <PaymentStatusBadge status={p.status} source={p.source} />
                 </div>
                 <div className="text-xs text-brand-muted truncate">
                   {formatDate(p.payment_date)}
+                  {p.company_account_key && ` · ${accountLabel(p.company_account_key)}`}
                   {p.payment_method && ` · ${p.payment_method}`}
                   {p.bank_reference && ` · ${p.bank_reference}`}
                 </div>
@@ -523,4 +537,8 @@ function PaymentStatusBadge({ status, source }: { status: string; source: string
       {source === "student" && <span className="ml-1 opacity-70">· student</span>}
     </span>
   );
+}
+
+function accountLabel(key: string) {
+  return COMPANY_ACCOUNTS.find((account) => account.key === key)?.label ?? key;
 }

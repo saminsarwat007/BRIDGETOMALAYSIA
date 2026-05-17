@@ -107,7 +107,7 @@ function ContractComposer({
   const [services, setServices] = useState<string[]>(
     Array.isArray(f.services) ? f.services : DEFAULT_SERVICES.slice(0, 5)
   );
-  const [currency, setCurrency] = useState<string>(f.currency ?? "BDT");
+  const [currency, setCurrency] = useState<"BDT" | "MYR">((f.currency === "MYR" ? "MYR" : "BDT"));
   const [totalAmount, setTotalAmount] = useState<string>(String(f.total_amount ?? 0));
   const [securityDeposit, setSecurityDeposit] = useState<string>(String(f.security_deposit ?? 3000));
   const [universityFee, setUniversityFee] = useState<string>(f.university_fee ?? "RM 450");
@@ -245,7 +245,17 @@ function ContractComposer({
 
       <FieldSet legend="Financials">
         <Row>
-          <Field label="Currency" value={currency} onChange={setCurrency} placeholder="BDT / MYR / USD" />
+          <label>
+            <span className="text-sm font-medium text-brand-ink">Currency</span>
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value as "BDT" | "MYR")}
+              className="input-paper mt-1.5"
+            >
+              <option value="BDT">BDT (৳)</option>
+              <option value="MYR">MYR (RM)</option>
+            </select>
+          </label>
           <Field
             label="Total amount"
             value={totalAmount}
