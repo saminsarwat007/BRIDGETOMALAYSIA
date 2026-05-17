@@ -33,7 +33,7 @@ export default async function AnalyticsPage() {
     supabase.from("students").select("id, current_stage, created_at, university, campus, intake, contract_required").order("created_at", { ascending: false }),
     supabase.from("invoices").select("id, total_amount, currency, status, created_at, student_id"),
     supabase.from("payments").select("id, amount_received, currency, status, source, created_at"),
-    supabase.from("documents").select("id, status, kind, student_id"),
+    supabase.from("documents").select("id, status, doc_type, student_id"),
     supabase.from("stage_history").select("id, student_id, from_stage, to_stage, changed_at").order("changed_at", { ascending: false }),
     supabase.from("commissions").select("amount, currency, received_date"),
     supabase.from("refunds").select("amount, currency, status, created_at"),
