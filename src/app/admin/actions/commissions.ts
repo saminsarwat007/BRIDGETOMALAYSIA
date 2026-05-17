@@ -12,6 +12,9 @@ const CommissionSchema = z.object({
   company_account_key: z.string().nullable().optional(),
   received_date: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
+  profit_divided: z.boolean().optional(),
+  divided_at: z.string().nullable().optional(),
+  divided_notes: z.string().nullable().optional(),
 });
 
 function accountForCurrency(currency: "BDT" | "MYR") {
@@ -41,6 +44,26 @@ export async function updateCommissionAction(id: string, data: unknown) {
   if (error) throw new Error(error.message);
   revalidatePath("/admin/commissions");
   revalidatePath("/admin/finance");
+}
+
+export async function markProfitDividedAction(id: string, divided_at: string, divided_notes: string) {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("commissions")
+    .update({ profit_divided: true, divided_at: divided_at || null, divided_notes: divided_notes || null })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/commissions");
+}
+
+export async function unmarkProfitDividedAction(id: string) {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("commissions")
+    .update({ profit_divided: false, divided_at: null, divided_notes: null })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/commissions");
 }
 
 export async function deleteCommissionAction(id: string) {

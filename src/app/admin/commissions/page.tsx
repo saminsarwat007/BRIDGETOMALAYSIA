@@ -11,7 +11,7 @@ export default async function CommissionsPage() {
   const [commissionsRes, studentsRes] = await Promise.all([
     supabase
       .from("commissions")
-      .select("id, university, amount, currency, company_account_key, received_date, notes, student_id, students(full_name)")
+      .select("id, university, amount, currency, company_account_key, received_date, notes, student_id, profit_divided, divided_at, divided_notes, students(full_name)")
       .order("received_date", { ascending: false, nullsFirst: false }),
     supabase
       .from("students")
@@ -22,12 +22,12 @@ export default async function CommissionsPage() {
   const commissions = commissionsRes.data ?? [];
   const students = studentsRes.data ?? [];
 
-  const totalBDT = commissions
-    .filter((c) => c.currency === "BDT")
-    .reduce((s, c) => s + Number(c.amount), 0);
-  const totalMYR = commissions
-    .filter((c) => c.currency === "MYR")
-    .reduce((s, c) => s + Number(c.amount), 0);
+  const totalBDT = commissions.filter((c) => c.currency === "BDT").reduce((s, c) => s + Number(c.amount), 0);
+  const totalMYR = commissions.filter((c) => c.currency === "MYR").reduce((s, c) => s + Number(c.amount), 0);
+  const dividedBDT = commissions.filter((c) => c.currency === "BDT" && c.profit_divided).reduce((s, c) => s + Number(c.amount), 0);
+  const dividedMYR = commissions.filter((c) => c.currency === "MYR" && c.profit_divided).reduce((s, c) => s + Number(c.amount), 0);
+  const balanceBDT = totalBDT - dividedBDT;
+  const balanceMYR = totalMYR - dividedMYR;
 
   return (
     <div className="p-5 sm:p-8 max-w-5xl">
@@ -38,14 +38,22 @@ export default async function CommissionsPage() {
         </div>
       </header>
 
-      <div className="mt-6 grid grid-cols-2 gap-3">
+      {/* 3-column balance summary */}
+      <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="card-paper p-4 sm:p-5">
-          <p className="text-xs uppercase tracking-wider text-brand-muted">Total BDT received</p>
-          <p className="mt-1.5 font-mono text-xl sm:text-2xl text-brand-ink">{formatCurrency(totalBDT, "BDT")}</p>
+          <p className="text-xs uppercase tracking-wider text-brand-muted">Total received</p>
+          <p className="mt-1.5 font-mono text-lg text-brand-ink">{formatCurrency(totalBDT, "BDT")}</p>
+          <p className="font-mono text-lg text-brand-ink">{formatCurrency(totalMYR, "MYR")}</p>
         </div>
         <div className="card-paper p-4 sm:p-5">
-          <p className="text-xs uppercase tracking-wider text-brand-muted">Total MYR received</p>
-          <p className="mt-1.5 font-mono text-xl sm:text-2xl text-brand-ink">{formatCurrency(totalMYR, "MYR")}</p>
+          <p className="text-xs uppercase tracking-wider text-brand-muted">Profit divided</p>
+          <p className="mt-1.5 font-mono text-lg text-emerald-700">{formatCurrency(dividedBDT, "BDT")}</p>
+          <p className="font-mono text-lg text-emerald-700">{formatCurrency(dividedMYR, "MYR")}</p>
+        </div>
+        <div className="card-paper p-4 sm:p-5 border-brand-bridge/30">
+          <p className="text-xs uppercase tracking-wider text-brand-muted">Company balance</p>
+          <p className="mt-1.5 font-mono text-lg font-semibold text-brand-bridge">{formatCurrency(balanceBDT, "BDT")}</p>
+          <p className="font-mono text-lg font-semibold text-brand-bridge">{formatCurrency(balanceMYR, "MYR")}</p>
         </div>
       </div>
 

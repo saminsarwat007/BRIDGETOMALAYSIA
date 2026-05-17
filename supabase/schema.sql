@@ -290,8 +290,11 @@ create table if not exists public.commissions (
   created_at timestamptz not null default now()
 );
 
--- Idempotent column add for commissions
+-- Idempotent column adds for commissions
 alter table public.commissions add column if not exists company_account_key text references public.company_accounts(key);
+alter table public.commissions add column if not exists profit_divided boolean not null default false;
+alter table public.commissions add column if not exists divided_at date;
+alter table public.commissions add column if not exists divided_notes text;
 
 create index if not exists commissions_student_idx on public.commissions (student_id);
 

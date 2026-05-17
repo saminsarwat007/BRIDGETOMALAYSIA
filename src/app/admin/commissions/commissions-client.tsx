@@ -2,9 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Loader2, X, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, X, Check, SplitSquareHorizontal, RotateCcw } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { createCommissionAction, updateCommissionAction, deleteCommissionAction } from "@/app/admin/actions/commissions";
+import {
+  createCommissionAction,
+  updateCommissionAction,
+  deleteCommissionAction,
+  markProfitDividedAction,
+  unmarkProfitDividedAction,
+} from "@/app/admin/actions/commissions";
 import { MALAYSIAN_UNIVERSITIES } from "@/lib/universities";
 
 interface Commission {
@@ -17,6 +23,9 @@ interface Commission {
   notes: string | null;
   student_id: string | null;
   students: { full_name: string } | null;
+  profit_divided: boolean;
+  divided_at: string | null;
+  divided_notes: string | null;
 }
 
 interface Student {
@@ -43,6 +52,8 @@ export function CommissionsClient({ commissions, students }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [dividingId, setDividingId] = useState<string | null>(null);
+  const [divideForm, setDivideForm] = useState({ divided_at: new Date().toISOString().slice(0, 10), divided_notes: "" });
   const [isPending, startTransition] = useTransition();
 
   function openNew() {
@@ -110,6 +121,29 @@ export function CommissionsClient({ commissions, students }: Props) {
         toast.success("Commission deleted");
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to delete");
+      }
+    });
+  }
+
+  function handleMarkDivided(id: string) {
+    startTransition(async () => {
+      try {
+        await markProfitDividedAction(id, divideForm.divided_at, divideForm.divided_notes);
+        toast.success("Marked as profit divided");
+        setDividingId(null);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Failed to update");
+      }
+    });
+  }
+
+  function handleUnmark(id: string) {
+    startTransition(async () => {
+      try {
+        await unmarkProfitDividedAction(id);
+        toast.success("Unmarked — back to company balance");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Failed to update");
       }
     });
   }
@@ -242,48 +276,127 @@ export function CommissionsClient({ commissions, students }: Props) {
             <thead>
               <tr className="border-b border-brand-stone bg-brand-cream/50">
                 <th className="text-left px-4 py-3 text-xs uppercase tracking-wider text-brand-muted font-medium">University</th>
-                <th className="text-left px-4 py-3 text-xs uppercase tracking-wider text-brand-muted font-medium">Student</th>
+                <th className="text-left px-4 py-3 text-xs uppercase tracking-wider text-brand-muted font-medium hidden sm:table-cell">Student</th>
                 <th className="text-right px-4 py-3 text-xs uppercase tracking-wider text-brand-muted font-medium">Amount</th>
                 <th className="text-left px-4 py-3 text-xs uppercase tracking-wider text-brand-muted font-medium hidden sm:table-cell">Date</th>
-                <th className="text-left px-4 py-3 text-xs uppercase tracking-wider text-brand-muted font-medium hidden md:table-cell">Notes</th>
-                <th className="px-4 py-3 w-20"></th>
+                <th className="text-left px-4 py-3 text-xs uppercase tracking-wider text-brand-muted font-medium">Status</th>
+                <th className="px-4 py-3 w-28"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-brand-stone/50">
               {commissions.map((c) => (
-                <tr key={c.id} className="hover:bg-brand-cream/30 transition-colors">
-                  <td className="px-4 py-3 font-medium text-brand-ink">{c.university}</td>
-                  <td className="px-4 py-3 text-brand-muted">
-                    {c.students?.full_name ?? <span className="italic text-brand-stone">—</span>}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono font-semibold text-brand-bridge">
-                    {formatCurrency(Number(c.amount), c.currency)}
-                  </td>
-                  <td className="px-4 py-3 text-brand-muted hidden sm:table-cell">
-                    {c.received_date ? formatDate(c.received_date) : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-brand-muted hidden md:table-cell max-w-[200px] truncate">
-                    {c.notes ?? "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => openEdit(c)}
-                        className="p-1.5 rounded-lg hover:bg-brand-stone/40 text-brand-muted hover:text-brand-ink transition"
-                        title="Edit"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(c.id, c.university)}
-                        className="p-1.5 rounded-lg hover:bg-rose-50 text-brand-muted hover:text-rose-600 transition"
-                        title="Delete"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                <>
+                  <tr key={c.id} className={`transition-colors ${c.profit_divided ? "bg-brand-cream/20 opacity-70" : "hover:bg-brand-cream/30"}`}>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-brand-ink">{c.university}</div>
+                      {c.notes && <div className="text-xs text-brand-muted truncate max-w-[140px]">{c.notes}</div>}
+                    </td>
+                    <td className="px-4 py-3 text-brand-muted hidden sm:table-cell">
+                      {c.students?.full_name ?? <span className="italic text-brand-stone">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono font-semibold text-brand-bridge">
+                      {formatCurrency(Number(c.amount), c.currency)}
+                    </td>
+                    <td className="px-4 py-3 text-brand-muted hidden sm:table-cell">
+                      {c.received_date ? formatDate(c.received_date) : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      {c.profit_divided ? (
+                        <div>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
+                            <Check className="h-3 w-3" /> Divided
+                          </span>
+                          {c.divided_at && <div className="text-[10px] text-brand-muted mt-0.5">{formatDate(c.divided_at)}</div>}
+                          {c.divided_notes && <div className="text-[10px] text-brand-muted truncate max-w-[120px]">{c.divided_notes}</div>}
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
+                          In company
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        {c.profit_divided ? (
+                          <button
+                            onClick={() => handleUnmark(c.id)}
+                            disabled={isPending}
+                            className="p-1.5 rounded-lg hover:bg-brand-stone/40 text-brand-muted hover:text-brand-ink transition"
+                            title="Move back to company balance"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => { setDividingId(dividingId === c.id ? null : c.id); setDivideForm({ divided_at: new Date().toISOString().slice(0, 10), divided_notes: "" }); }}
+                            className="p-1.5 rounded-lg hover:bg-emerald-50 text-brand-muted hover:text-emerald-700 transition"
+                            title="Mark profit divided"
+                          >
+                            <SplitSquareHorizontal className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => openEdit(c)}
+                          className="p-1.5 rounded-lg hover:bg-brand-stone/40 text-brand-muted hover:text-brand-ink transition"
+                          title="Edit"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(c.id, c.university)}
+                          className="p-1.5 rounded-lg hover:bg-rose-50 text-brand-muted hover:text-rose-600 transition"
+                          title="Delete"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {/* Inline divide form */}
+                  {dividingId === c.id && (
+                    <tr key={`${c.id}-divide`}>
+                      <td colSpan={6} className="px-4 pb-4 pt-0 bg-emerald-50/50">
+                        <div className="border border-emerald-200 rounded-xl p-4 space-y-3">
+                          <p className="text-sm font-medium text-brand-ink">
+                            Mark <strong>{formatCurrency(Number(c.amount), c.currency)}</strong> from {c.university} as profit divided
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <label className="flex flex-col gap-1">
+                              <span className="text-xs text-brand-muted">Date divided</span>
+                              <input
+                                type="date"
+                                value={divideForm.divided_at}
+                                onChange={(e) => setDivideForm((p) => ({ ...p, divided_at: e.target.value }))}
+                                className="input-paper text-sm"
+                              />
+                            </label>
+                            <label className="flex flex-col gap-1">
+                              <span className="text-xs text-brand-muted">Notes <span className="text-brand-muted/60">(e.g. 50% Huzaifa, 50% Samin)</span></span>
+                              <input
+                                type="text"
+                                value={divideForm.divided_notes}
+                                onChange={(e) => setDivideForm((p) => ({ ...p, divided_notes: e.target.value }))}
+                                className="input-paper text-sm"
+                                placeholder="How was it split?"
+                              />
+                            </label>
+                          </div>
+                          <div className="flex gap-2 justify-end">
+                            <button onClick={() => setDividingId(null)} className="btn-ghost border border-brand-stone text-xs">Cancel</button>
+                            <button
+                              onClick={() => handleMarkDivided(c.id)}
+                              disabled={isPending}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50"
+                            >
+                              {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                              Confirm profit divided
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
               ))}
             </tbody>
           </table>
