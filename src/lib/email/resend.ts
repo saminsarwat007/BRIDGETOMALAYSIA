@@ -25,7 +25,7 @@ export async function sendEmail({ to, subject, html, text }: SendArgs) {
   const from = process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev";
   const replyTo = process.env.RESEND_REPLY_TO;
 
-  return client.emails.send({
+  const { data, error } = await client.emails.send({
     from: `Bridge to Malaysia <${from}>`,
     to,
     subject,
@@ -33,4 +33,10 @@ export async function sendEmail({ to, subject, html, text }: SendArgs) {
     text,
     replyTo: replyTo ? [replyTo] : undefined,
   });
+
+  if (error) {
+    throw new Error(error.message ?? "Resend rejected the email");
+  }
+
+  return data;
 }
