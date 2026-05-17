@@ -31,7 +31,7 @@ What the app replaces:
 | Auth | Supabase Auth (email/password, admins only) |
 | Database | Supabase Postgres (with RLS + SECURITY DEFINER functions) |
 | File storage | Google Drive (via **OAuth2 personal account**, not Supabase Storage) |
-| Email | Resend (`onboarding@resend.dev`, reply-to Gmail) |
+| Email | Resend (`onboarding@resend.dev` sandbox — **⚠️ needs custom domain for production**) |
 | PDF | `@react-pdf/renderer` (server-rendered to a Node route) |
 | Hosting | Vercel (free) |
 | Fonts | Geist Sans + Geist Mono + Fraunces (display) |
@@ -110,7 +110,9 @@ BRIDGETOMALAYSIA/
 │   │   ├── student-invoices.tsx      ← Invoice CRUD + payment recording for one student
 │   │   ├── student-contracts.tsx     ← Contract CRUD + TypeSignature for provider sig
 │   │   ├── student-documents.tsx     ← Document checklist: mark received / request re-upload
-│   │   └── student-refunds.tsx       ← Refund records: create / mark refunded / cancel
+│   │   ├── student-refunds.tsx       ← Refund records: create / mark refunded / cancel
+│   │   ├── agency-referral-button.tsx ← Forward student to agency modal + email preview
+│   │   └── upload-toggle-button.tsx  ← Toggle upload_enabled on/off for a student
 │   └── app/
 │       ├── globals.css               ← Design tokens, utility classes
 │       ├── layout.tsx                ← Root layout (fonts, Toaster)
@@ -137,9 +139,12 @@ BRIDGETOMALAYSIA/
 │       │   │   └── commissions-client.tsx ← CRUD table + inline divide form
 │       │   ├── referrals/            ← Referrer rollup
 │       │   └── actions/              ← Server actions
-│       │       ├── students.ts       ← create/update/delete student
-│       │       ├── tracking.ts       ← addStageUpdate, quickSetStage
-│       │       ├── invoices.ts       ← createInvoice, recordPayment, approve/reject, contract CRUD
+│       │       ├── students.ts       ← create/update/delete student, toggleUploadEnabled
+│       │       ├── tracking.ts       ← addStageUpdate, quickSetStage (no history entry)
+│       │       ├── invoices.ts       ← createInvoice, updateInvoice (all statuses), recordPayment, approve/reject, delete
+│       │       ├── contracts.ts      ← createContract, updateContract, deleteContract
+│       │       ├── refunds.ts        ← createRefund, markRefunded, cancelRefund
+│       │       ├── agency-referral.ts ← previewAgencyReferral, sendAgencyReferral
 │       │       └── commissions.ts    ← createCommission, update, delete, markProfitDivided, unmark
 │       └── api/
 │           └── public/
@@ -166,20 +171,21 @@ See `supabase/schema.sql` for the authoritative schema. Tables:
 | Table | Purpose |
 |-------|---------|
 | `profiles` | Admin users (auto-created from `auth.users` via trigger) |
-| `students` | Core record per student (`whatsapp_group_url`, `agency_referred_at`, `agency_referred_to`) |
+| `students` | Core record per student (`whatsapp_group_url`, `agency_referred_at`, `agency_referred_to`, `upload_enabled`) |
 | `applications` | Optional multi-university apps per student |
 | `documents` | Per-student doc checklist (passport, SSC, etc.) |
-| `contracts` | Generated contracts (`signed`, `signed_at`, `signed_ip`, `field_values` JSONB) |
+| `contracts` | Generated contracts (`signed`, `signed_at`, `signed_ip`, `field_values` JSONB, `drive_file_id`, `drive_link`) |
 | `invoices` | Editable invoices (`line_items`, `field_values` JSONB, `status` enum) |
 | `payments` | Each payment, including student-uploaded receipts |
 | `transactions` | Ledger (kept loose for now; payments are the source of truth) |
+| `refunds` | Refund records per student (`amount`, `currency`, `status`, `reason`, `refund_method`, `bank_reference`, `proof_drive_link`) |
 | `referrals` | Who referred whom |
 | `commissions` | What universities paid us |
 | `stage_history` | Every stage update + comment + Drive attachment link |
 | `numbering_counters` | Year-scoped invoice/contract sequence numbers |
 
 Public-safe functions (callable from `anon`):
-- `get_tracking_by_passport(p_passport text)` → JSONB student status
+- `get_tracking_by_passport(p_passport text)` → JSONB student status (**NOTE: no longer used for tracking page — see Section 8a**)
 - `submit_student_payment(...)` → records a `payments` row with `source='student'`, `status='pending'`
 
 RLS: all admin tables require `auth.role() = 'authenticated'`.
@@ -213,13 +219,32 @@ RLS: all admin tables require `auth.role() = 'authenticated'`.
 
 ## 8. Contracts & e-signing
 
-1. Admin creates a contract from `/admin/students/[id]` → generates a PDF via `@react-pdf/renderer` → uploaded to Drive `Contracts` subfolder.
+1. Admin creates a contract from `/admin/students/[id]` → generates a PDF via `@react-pdf/renderer` → uploaded to Drive `Contracts` subfolder as `{name}_contract.pdf`.
 2. Admin can add their own signature via the **TypeSignature** panel in the contract composer: type a name → rendered in Dancing Script cursive → stored as `field_values.signature_image`.
 3. Student sees contract card on `/track/{passport}` with "Download PDF" and "Sign contract" buttons.
 4. Student clicks "Sign contract" → inline **TypeSignature** panel opens (no browser confirm popup).
 5. Student types their name → preview in cursive → clicks "Adopt & Sign" → POST to `/api/public/sign-contract` with `signature_image` (base64 PNG).
 6. DB records `signed=true`, `signed_at=now()`, `signed_ip=client_ip`, `field_values.client_signature_image`.
-7. Contract PDF shows the cursive signature image above each party's signature line + signed date. Both parties' signatures look identical and professional.
+7. **After signing**, a new PDF is generated with the student's signature rendered on it and uploaded to Drive as `{name}_contract_SIGNED.pdf`. The contract `drive_link` is updated to this signed version.
+8. Contract PDF shows the cursive signature image above each party's signature line + signed date.
+
+## 8a. Tracking page data architecture (important)
+
+**The `get_tracking_by_passport` RPC is no longer used for the tracking page.**
+
+Root cause of the old bug: the RPC is `SECURITY DEFINER` owned by `postgres`, but when called via PostgREST from Vercel, the RLS policy `auth.role() = 'authenticated'` blocked invoices/contracts because `auth.role()` resolved to `service_role`.
+
+**Current approach** (`src/app/track/[passport]/page.tsx`): All data is fetched directly using `createServiceClient()` (service role key) which bypasses RLS entirely:
+- `students` — by `passport_no`
+- `invoices` — by `student_id`, status ≠ `draft`, with `total_paid` computed from approved payments
+- `stage_history` — by `student_id`
+- `contracts` — by `student_id`
+- `refunds` — by `student_id`, status ≠ `cancelled`
+- `documents` — by `student_id`
+
+The page uses `export const dynamic = "force-dynamic"`, `export const fetchCache = "force-no-store"`, and `unstable_noStore()` to guarantee no CDN or Next.js caching — every visit is always live data.
+
+`TrackingPayload` type in `src/types/database.ts` includes: `student`, `invoices`, `stage_history`, `contracts`, `refunds`.
 
 ## 9. AI passport scanner
 
@@ -345,10 +370,11 @@ If using OAuth2 (Priority 1), the parent Drive folder must be inside the **same 
 
 ## 14. Known gaps / future work
 
-- **Email notifications** — `payment confirmed` and `document rejected` templates exist in `src/lib/email/templates.ts` but are not yet wired to admin approve/reject actions.
+- **Email delivery** — Currently using Resend sandbox (`onboarding@resend.dev`). Emails only deliver to the Resend account owner's email. **All student/agency emails are silently dropped.** Fix: verify a custom domain in Resend (~$9/yr for `.com` on Cloudflare) → update `RESEND_FROM_EMAIL` in Vercel. No code change needed, just env var.
+- **Agency emails** — `src/lib/agencies.ts` has `email: ""` for AIMS. Fill in real agency emails + add agencies for other universities.
 - **Upstash Redis** — `UPSTASH_REDIS_REST_URL/TOKEN` not set in Vercel; intake rate limiting falls back to in-memory. Add free Upstash Redis for production safety.
 - **GEMINI_API_KEY** — only set for Production in Vercel, not Preview. Add to Preview environment if needed.
-- **NEXT_PUBLIC_APP_URL** — should be set to the production Vercel URL in Vercel env vars (currently only set locally to `http://localhost:3000`).
+- **NEXT_PUBLIC_APP_URL** — should be set to the production Vercel URL in Vercel env vars.
 
 ## 15. Recent fixes & changes (May 2026)
 
@@ -369,5 +395,19 @@ If using OAuth2 (Priority 1), the parent Drive folder must be inside the **same 
 | May 2026 | Admin-only student notes added (`/admin/students/[id]` → Notes tab) |
 | May 2026 | Document upload robustness: pending DB row always inserted even if Drive upload fails |
 | May 2026 | **Google Drive migrated to OAuth2 personal account** — fixed `ERR_OSSL_UNSUPPORTED` and `storage quota exceeded` errors; uses 3 new env vars (`GOOGLE_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN`) |
+| May 2026 | **Tracking page fixed** — Replaced `get_tracking_by_passport` RPC with direct service-role queries to bypass RLS. Invoices, contracts, refunds now always show correctly. |
+| May 2026 | **Tracking page caching fixed** — Added `force-dynamic`, `force-no-store`, `unstable_noStore()` to guarantee no CDN caching |
+| May 2026 | **Signed contract PDF** — After student signs, a new `{name}_contract_SIGNED.pdf` is generated and uploaded to Drive; `drive_link` updated to signed version |
+| May 2026 | **`buildContractFilename`** — Now accepts `signed` boolean flag; unsigned = `_contract.pdf`, signed = `_contract_SIGNED.pdf` |
+| May 2026 | **`renderAndUploadPdf`** — Now accepts optional `supabaseClient` param so public routes can pass service client (bypasses RLS for DB update) |
+| May 2026 | **Invoice "Mark paid/unpaid" buttons** — Added to admin InvoiceCard so admin can directly flip status without needing to record a payment |
+| May 2026 | **`updateInvoiceAction` status types** — Widened from `"draft"\|"sent"` to all valid statuses (`paid`, `partially_paid`, `overpaid`, `cancelled`) |
+| May 2026 | **`revalidatePath` for tracking page** — All admin actions that change invoice/contract/refund status now also call `revalidatePath(/track/{passport})` |
+| May 2026 | **Refunds on tracking page** — Students can now see their refunds (pending = "Processing", refunded = "Refunded" with date + method + proof link) |
+| May 2026 | **`quickSetStageAction` fixed** — No longer creates a `stage_history` entry on quick stage change; only updates `current_stage` |
+| May 2026 | **Documents section gating** — Upload section on tracking page only shows when `upload_enabled=true` AND at least one document has `status='rejected'` |
+| May 2026 | **`UploadToggleButton`** — Added to admin student page header for instant toggle of `upload_enabled` |
+| May 2026 | **`toggleUploadEnabledAction`** — Server action to flip `upload_enabled` on a student |
+| May 2026 | **Resend error surfacing** — `sendEmail` now throws if Resend API returns an error (previously silently succeeded even if email was dropped) |
 
-The SaaS is **fully operational** end-to-end: AI passport scan → onboard student → generate invoice/contract PDF → both parties type-sign → student uploads receipt → admin approves → status visible on tracking page.
+The SaaS is **fully operational** end-to-end: AI passport scan → onboard student → generate invoice/contract PDF → both parties type-sign → student uploads receipt → admin approves → status visible on tracking page. **Email delivery requires domain setup in Resend before going live.**
