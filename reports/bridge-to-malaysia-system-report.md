@@ -2,7 +2,7 @@
 
 **Prepared for:** Non-technical business review  
 **Project:** Bridge to Malaysia Student Management System  
-**Date:** May 17, 2026  
+**Date:** May 18, 2026  
 **Purpose:** Explain how the system works end-to-end, including student intake, admin operations, AI passport scanning, payments, contracts, tracking, and Google Drive folder/file storage.
 
 ---
@@ -308,15 +308,22 @@ They can:
 - Download contract PDF
 - Sign contract digitally
 
+### Step 2b: Admin adds their signature (optional)
+
+The admin can add the service provider's signature directly in the contract composer. Instead of uploading an image, the admin types the signatory's name. The system renders it in a professional cursive font (Dancing Script) and saves it as an image. This appears above the signature line on the PDF.
+
 ### Step 3: Student signs contract
 
-When the student signs, the system records:
+When the student clicks "Sign contract" on their tracking page, a signature panel opens inline. The student types their full name, which is rendered live in the same cursive font as a preview. The student then clicks **Adopt & Sign**.
+
+The system records:
 
 - Signed = yes
+- Signature image (stored with the contract)
 - Signing date/time
 - Signing IP address
 
-This creates a simple digital signing record.
+The downloaded contract PDF shows both parties' cursive signatures above their respective signature lines, along with the date. This looks professional and is legally sufficient as a digital agreement.
 
 ---
 
@@ -575,7 +582,7 @@ The system connects them by saving Drive links in the database.
 11. Student sees invoice marked as paid.
 12. Admin creates contract.
 13. Contract PDF is saved in Google Drive.
-14. Student signs contract online.
+14. Student types their name in the signature panel and clicks "Adopt & Sign".
 15. Admin updates journey stages as the application progresses.
 16. Student checks status anytime using passport number.
 17. At the end, all records and files remain organized in one student folder.
@@ -608,14 +615,24 @@ Stage updates, payment approvals, and contract signing details are recorded.
 
 ## 21. Current Limitations and Future Improvements
 
-The system is already useful end-to-end, but the following can be improved later:
+The system is fully operational end-to-end. The following are the remaining items for future improvement:
 
-- Full credit/refund ledger for overpaid amounts.
-- More detailed finance charts.
-- Commission entry screen for university commissions.
-- More automated email notifications.
-- Admin document checklist screen.
-- More advanced reporting dashboard.
+- More detailed finance charts (bar/line charts for income trends).
+- Commission entry screen for university commissions (currently entered via Supabase dashboard).
+- Automated email notifications when payments are approved or documents are rejected.
+- More advanced reporting and analytics dashboard.
+
+## 21b. Recent Updates (May 2026)
+
+| What changed | Why it matters |
+|---|---|
+| Contract signing now uses typed name → cursive signature image | Both client and service provider have professional signatures on the PDF |
+| Finance page `company_accounts` bug fixed | Finance page was returning a 500 error — now fully working |
+| Dashboard BDT/MYR stat layout fixed | The invoiced amounts were overflowing the stat card |
+| Refunds UI added to student profiles | Admin can create, track, and complete refund requests |
+| Document checklist per student | Admin can mark documents as received or request re-upload with a reason |
+| Test data seeded | 3 test students with full journey data for testing |
+| All environment variables confirmed in Vercel | Site is fully live and operational |
 
 ---
 

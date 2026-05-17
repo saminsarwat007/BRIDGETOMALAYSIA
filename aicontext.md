@@ -100,13 +100,17 @@ BRIDGETOMALAYSIA/
 │   │   └── ai/gemini.ts              ← Gemini 2.5 Flash — passport OCR extraction
 │   ├── components/
 │   │   ├── passport-scanner.tsx      ← AI passport scan UI (public + admin forms)
+│   │   ├── type-signature.tsx        ← Typed name → cursive canvas image (Dancing Script font)
 │   │   └── security/turnstile-widget.tsx  ← Cloudflare Turnstile CAPTCHA
 │   ├── components/admin/
 │   │   ├── admin-shell.tsx           ← Sidebar (desktop) + bottom nav (mobile)
 │   │   ├── student-form.tsx          ← Create/edit student form (useFormState)
 │   │   ├── student-tabs.tsx          ← Tabs within student detail page
 │   │   ├── tracking-updates.tsx      ← Admin tracking portal (stage + comments + attachments)
-│   │   └── student-invoices.tsx      ← Invoice CRUD + payment recording for one student
+│   │   ├── student-invoices.tsx      ← Invoice CRUD + payment recording for one student
+│   │   ├── student-contracts.tsx     ← Contract CRUD + TypeSignature for provider sig
+│   │   ├── student-documents.tsx     ← Document checklist: mark received / request re-upload
+│   │   └── student-refunds.tsx       ← Refund records: create / mark refunded / cancel
 │   └── app/
 │       ├── globals.css               ← Design tokens, utility classes
 │       ├── layout.tsx                ← Root layout (fonts, Toaster)
@@ -141,6 +145,9 @@ BRIDGETOMALAYSIA/
 │               ├── invoice-pdf/route.ts         ← Public invoice PDF by passport + invoice ID
 │               ├── contract-pdf/route.ts        ← Public contract PDF by passport + contract ID
 │               └── sign-contract/route.ts       ← Student e-signing (records signed_at + signed_ip)
+├── scripts/
+│   ├── seed.mjs                      ← Seed DB with realistic test data (3 students, invoices, payments…)
+│   └── test-all.mjs                  ← Full feature test runner (DB queries + public API health check)
 ├── .env.local                        ← Secrets (gitignored)
 ├── .env.example                      ← Template
 └── package.json
@@ -203,10 +210,12 @@ RLS: all admin tables require `auth.role() = 'authenticated'`.
 ## 8. Contracts & e-signing
 
 1. Admin creates a contract from `/admin/students/[id]` → generates a PDF via `@react-pdf/renderer` → uploaded to Drive `Contracts` subfolder.
-2. Student sees contract card on `/track/{passport}` with "View contract" and "Sign contract" buttons.
-3. Student clicks "Sign contract" → POST to `/api/public/sign-contract` with IP capture.
-4. DB records `signed=true`, `signed_at=now()`, `signed_ip=client_ip`.
-5. Contract PDF shows "SIGNED" stamp with date. Admin and student can download the signed PDF anytime.
+2. Admin can add their own signature via the **TypeSignature** panel in the contract composer: type a name → rendered in Dancing Script cursive → stored as `field_values.signature_image`.
+3. Student sees contract card on `/track/{passport}` with "Download PDF" and "Sign contract" buttons.
+4. Student clicks "Sign contract" → inline **TypeSignature** panel opens (no browser confirm popup).
+5. Student types their name → preview in cursive → clicks "Adopt & Sign" → POST to `/api/public/sign-contract` with `signature_image` (base64 PNG).
+6. DB records `signed=true`, `signed_at=now()`, `signed_ip=client_ip`, `field_values.client_signature_image`.
+7. Contract PDF shows the cursive signature image above each party's signature line + signed date. Both parties' signatures look identical and professional.
 
 ## 9. AI passport scanner
 
@@ -315,12 +324,25 @@ The Drive service account must be shared on the parent "Student details" folder 
 
 ## 14. Known gaps / future work
 
-These were scoped down from the original plan to ship faster:
+- **Finance charts** — data exists; add Recharts bar/line charts to the finance page.
+- **Commission entry UI** — commissions can currently only be inserted via SQL or the Supabase dashboard.
+- **Email notifications** — `payment confirmed` and `document rejected` templates exist in `src/lib/email/templates.ts` but are not yet wired to admin approve/reject actions.
+- **Upstash Redis** — `UPSTASH_REDIS_REST_URL/TOKEN` not set in Vercel; intake rate limiting falls back to in-memory. Add free Upstash Redis for production safety.
+- **GEMINI_API_KEY** — only set for Production in Vercel, not Preview. Add to Preview environment if needed.
+- **NEXT_PUBLIC_APP_URL** — should be set to the production Vercel URL in Vercel env vars (currently only set locally to `http://localhost:3000`).
 
-- Document checklist UI (`/admin/students/[id]?tab=documents`) is not built; the `documents` table is ready.
-- Finance dashboard is minimal (no charts yet); the data is there to add Recharts views.
-- Commission entry UI is not built; commissions can currently only be inserted via SQL.
-- Email notifications for `payment confirmed` and `document rejected` are templated but not yet wired to admin actions.
-- Refund/ledger UI for overpaid amounts is not built; overpayment is shown to students but not tracked as a formal credit balance.
+## 15. Recent fixes & changes (May 2026)
 
-The SaaS is **already useful** for end-to-end: AI passport scan → onboard student → generate invoice/contract PDF → student signs contract → uploads receipt → admin approves → status visible on tracking page.
+| Date | Fix |
+|------|-----|
+| May 2026 | Added `updated_at` column + trigger to `company_accounts` table (was causing 500 on finance page) |
+| May 2026 | Added `whatsapp_group_url` column to `students` table in schema |
+| May 2026 | Added `signed_at`, `signed_ip` columns to `contracts` table |
+| May 2026 | Added `company_account_key` column to `commissions` table |
+| May 2026 | Updated `get_tracking_by_passport` RPC to return `contracts`, `total_paid`, `whatsapp_group_url` |
+| May 2026 | Added `TypeSignature` component — typed name renders in cursive for both client + provider |
+| May 2026 | Contract PDF: shows client + provider signature images; SIGNED stamp fallback for older contracts |
+| May 2026 | Dashboard `Invoiced BDT/MYR` stat fixed (overflow → two stacked lines) |
+| May 2026 | Seed script added (`scripts/seed.mjs`) — 3 test students with full data |
+
+The SaaS is **fully operational** end-to-end: AI passport scan → onboard student → generate invoice/contract PDF → both parties type-sign → student uploads receipt → admin approves → status visible on tracking page.
