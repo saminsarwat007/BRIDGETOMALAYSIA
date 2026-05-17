@@ -24,6 +24,11 @@ const MarkRefundedSchema = z.object({
   notes: z.string().optional().nullable(),
 });
 
+async function getPassport(supabase: ReturnType<typeof createClient>, studentId: string) {
+  const { data } = await supabase.from("students").select("passport_no").eq("id", studentId).maybeSingle();
+  return data?.passport_no ?? null;
+}
+
 export async function createRefundAction(formData: FormData) {
   const parsed = CreateRefundSchema.parse(Object.fromEntries(formData.entries()));
   const accountKey = parsed.company_account_key || defaultAccountForCurrency(parsed.currency);
@@ -42,9 +47,11 @@ export async function createRefundAction(formData: FormData) {
 
   if (error) throw new Error(error.message);
 
+  const passport = await getPassport(supabase, parsed.student_id);
   revalidatePath(`/admin/students/${parsed.student_id}`);
   revalidatePath(`/admin/students/${parsed.student_id}?tab=refunds`);
   revalidatePath("/admin/finance");
+  if (passport) revalidatePath(`/track/${passport}`);
 }
 
 export async function markRefundedAction(formData: FormData) {
@@ -66,9 +73,11 @@ export async function markRefundedAction(formData: FormData) {
 
   if (error) throw new Error(error.message);
 
+  const passport = await getPassport(supabase, parsed.student_id);
   revalidatePath(`/admin/students/${parsed.student_id}`);
   revalidatePath(`/admin/students/${parsed.student_id}?tab=refunds`);
   revalidatePath("/admin/finance");
+  if (passport) revalidatePath(`/track/${passport}`);
 }
 
 export async function cancelRefundAction(formData: FormData) {
@@ -85,7 +94,9 @@ export async function cancelRefundAction(formData: FormData) {
 
   if (error) throw new Error(error.message);
 
+  const passport = await getPassport(supabase, studentId);
   revalidatePath(`/admin/students/${studentId}`);
   revalidatePath(`/admin/students/${studentId}?tab=refunds`);
   revalidatePath("/admin/finance");
+  if (passport) revalidatePath(`/track/${passport}`);
 }

@@ -45,7 +45,7 @@ const attachmentLabels: Record<string, string> = {
 };
 
 export function TrackingView({ payload, passport, documents }: Props) {
-  const { student, invoices, stage_history } = payload;
+  const { student, invoices, stage_history, refunds } = payload;
   const currentIdx = stageIndex(student.current_stage);
 
   // Group history items by stage
@@ -262,6 +262,55 @@ export function TrackingView({ payload, passport, documents }: Props) {
                 </article>
               );
             })}
+          </div>
+        </section>
+      )}
+
+      {/* Refunds */}
+      {refunds.length > 0 && (
+        <section className="mt-16">
+          <h2 className="font-display text-2xl text-brand-ink mb-6">Refunds</h2>
+          <div className="space-y-3">
+            {refunds.map((r) => (
+              <article key={r.id} className="card-paper p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-display text-lg text-brand-ink">{formatCurrency(r.amount, r.currency)}</span>
+                    {r.status === "pending" && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                        <Clock className="h-3 w-3" /> Processing
+                      </span>
+                    )}
+                    {r.status === "refunded" && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
+                        <Check className="h-3 w-3" /> Refunded
+                      </span>
+                    )}
+                  </div>
+                  {r.reason && (
+                    <p className="text-sm text-brand-ink/70 mt-0.5">{r.reason}</p>
+                  )}
+                  {r.status === "refunded" && r.refunded_at && (
+                    <p className="text-xs text-brand-muted mt-0.5">Refunded {formatDate(r.refunded_at)}</p>
+                  )}
+                  {r.status === "refunded" && r.refund_method && (
+                    <p className="text-xs text-brand-muted">
+                      via {r.refund_method}{r.bank_reference && ` · Ref: ${r.bank_reference}`}
+                    </p>
+                  )}
+                </div>
+                {r.status === "refunded" && r.proof_drive_link && (
+                  <a
+                    href={r.proof_drive_link}
+                    target="_blank"
+                    rel="noopener"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-brand-stone px-3 py-1.5 text-xs font-semibold text-brand-ink hover:bg-brand-cream transition"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" /> View proof
+                  </a>
+                )}
+              </article>
+            ))}
           </div>
         </section>
       )}

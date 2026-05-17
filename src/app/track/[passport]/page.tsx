@@ -65,6 +65,7 @@ export default async function TrackingDetailPage({ params }: PageProps) {
     { data: stageHistoryRaw },
     { data: contractsRaw },
     { data: docsRaw },
+    { data: refundsRaw },
   ] = await Promise.all([
     supabase
       .from("invoices")
@@ -86,6 +87,12 @@ export default async function TrackingDetailPage({ params }: PageProps) {
       .from("documents")
       .select("doc_type, status, rejection_reason, drive_link")
       .eq("student_id", student.id),
+    supabase
+      .from("refunds")
+      .select("id, amount, currency, status, reason, refund_method, bank_reference, proof_drive_link, refunded_at, created_at")
+      .eq("student_id", student.id)
+      .neq("status", "cancelled")
+      .order("created_at", { ascending: false }),
   ]);
 
   // Compute total_paid per invoice
@@ -106,6 +113,7 @@ export default async function TrackingDetailPage({ params }: PageProps) {
     invoices,
     stage_history: stageHistoryRaw ?? [],
     contracts: contractsRaw ?? [],
+    refunds: refundsRaw ?? [],
   };
 
   const documents = docsRaw ?? [];

@@ -251,4 +251,16 @@ export interface TrackingPayload {
     signed_at: string | null;
     generated_at: string;
   }>;
+  refunds: Array<{
+    id: string;
+    amount: number;
+    currency: MoneyCurrency;
+    status: RefundStatus;
+    reason: string | null;
+    refund_method: string | null;
+    bank_reference: string | null;
+    proof_drive_link: string | null;
+    refunded_at: string | null;
+    created_at: string;
+  }>;
 }
