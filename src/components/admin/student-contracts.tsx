@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import type { Student, Contract } from "@/types/database";
+import { TypeSignature } from "@/components/type-signature";
 import {
   createContractAction,
   deleteContractAction,
@@ -124,6 +125,7 @@ function ContractComposer({
   );
   const [customClauses, setCustomClauses] = useState<string>(f.custom_clauses ?? "");
   const [signatureImage, setSignatureImage] = useState<string>(f.signature_image ?? "");
+  const [showSigPad, setShowSigPad] = useState(false);
 
   const [isPending, startTransition] = useTransition();
 
@@ -153,24 +155,9 @@ function ContractComposer({
     };
   }
 
-  async function handleSignaturePick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 1.5 * 1024 * 1024) {
-      toast.error("Signature image is too large (max 1.5MB)");
-      return;
-    }
-    try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => reject(reader.error);
-        reader.readAsDataURL(file);
-      });
-      setSignatureImage(dataUrl);
-    } catch {
-      toast.error("Couldn't read that image");
-    }
+  function handleSignatureAdopt(dataUrl: string) {
+    setSignatureImage(dataUrl);
+    setShowSigPad(false);
   }
 
   function handleSubmit() {
@@ -292,46 +279,33 @@ function ContractComposer({
         </Row>
       </FieldSet>
 
-      <FieldSet legend="Signature (optional)">
+      <FieldSet legend="Service-provider signature (optional)">
         <p className="text-xs text-brand-muted -mt-1">
-          Upload a transparent-background PNG of the service-provider's signature. It will appear
-          above the signature line on the contract. Re-upload anytime to change.
+          Type the signatory's name to generate a cursive signature for the contract PDF.
         </p>
-        {signatureImage ? (
-          <div className="rounded-md border border-brand-stone bg-brand-paper p-3 flex items-center gap-4">
-            <div className="bg-white/70 rounded p-2 flex-shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={signatureImage}
-                alt="Signature preview"
-                className="h-16 object-contain"
-              />
+        {signatureImage && !showSigPad ? (
+          <div className="rounded-md border border-brand-stone bg-white p-3 flex items-center gap-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={signatureImage} alt="Signature preview" className="h-12 object-contain flex-1 min-w-0" />
+            <div className="flex gap-2 shrink-0">
+              <button type="button" onClick={() => setShowSigPad(true)} className="text-xs text-brand-bridge hover:underline">Change</button>
+              <button type="button" onClick={() => setSignatureImage("")} className="text-xs text-rose-600 hover:underline">Remove</button>
             </div>
-            <div className="flex-1 min-w-0 text-sm">
-              <div className="font-medium text-brand-ink">Signature attached</div>
-              <div className="text-xs text-brand-muted">
-                Shown above the signature line on the contract PDF
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSignatureImage("")}
-              className="text-xs text-rose-600 hover:underline"
-            >
-              Remove
-            </button>
           </div>
+        ) : showSigPad ? (
+          <TypeSignature
+            defaultName={signatoryName}
+            onSave={handleSignatureAdopt}
+            onCancel={() => setShowSigPad(false)}
+          />
         ) : (
-          <label className="flex flex-col items-center justify-center gap-2 cursor-pointer rounded-xl border-2 border-dashed border-brand-stone bg-brand-cream/40 py-6 px-4 hover:bg-brand-cream transition">
-            <span className="text-sm text-brand-ink">Upload signature image</span>
-            <span className="text-xs text-brand-muted">PNG, JPG (transparent background recommended)</span>
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              onChange={handleSignaturePick}
-              className="hidden"
-            />
-          </label>
+          <button
+            type="button"
+            onClick={() => setShowSigPad(true)}
+            className="w-full rounded-xl border-2 border-dashed border-brand-stone bg-brand-cream/40 py-5 text-sm text-brand-ink hover:bg-brand-cream transition"
+          >
+            + Add signature
+          </button>
         )}
       </FieldSet>
 

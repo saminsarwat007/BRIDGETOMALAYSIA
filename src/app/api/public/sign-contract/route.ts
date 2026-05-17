@@ -14,6 +14,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const passport = String(body.passport ?? "").trim();
     const contractId = String(body.contract_id ?? "").trim();
+    const signatureImage: string | undefined = body.signature_image;
 
     if (!passport || !contractId) {
       return NextResponse.json({ ok: false, error: "Missing passport or contract_id" }, { status: 400 });
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
     // Verify contract belongs to student
     const { data: contract } = await supabase
       .from("contracts")
-      .select("id, signed")
+      .select("id, signed, field_values")
       .eq("id", contractId)
       .eq("student_id", student.id)
       .maybeSingle();
@@ -54,13 +55,19 @@ export async function POST(request: Request) {
       request.headers.get("x-real-ip") ??
       "unknown";
 
-    // Mark as signed
+    // Mark as signed — merge signature image into existing field_values
+    const existingFields = (contract.field_values ?? {}) as Record<string, unknown>;
+    const updatedFields = signatureImage
+      ? { ...existingFields, client_signature_image: signatureImage }
+      : existingFields;
+
     const { error } = await supabase
       .from("contracts")
       .update({
         signed: true,
         signed_at: new Date().toISOString(),
         signed_ip: ip,
+        field_values: updatedFields,
       })
       .eq("id", contractId);
 

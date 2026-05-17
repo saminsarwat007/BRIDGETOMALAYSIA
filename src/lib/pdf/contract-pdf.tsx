@@ -229,7 +229,8 @@ export function ContractPDF({ contract, student }: Props) {
   const signatureDate: string = f.signature_date ?? new Date().toISOString().slice(0, 10);
   const contractDate: string = f.contract_date ?? new Date().toISOString().slice(0, 10);
   const customClauses: string = f.custom_clauses ?? "";
-  const signatureImage: string | undefined = f.signature_image; // data:image/... or https://...
+  const signatureImage: string | undefined = f.signature_image;
+  const clientSignatureImage: string | undefined = f.client_signature_image;
 
   return (
     <Document
@@ -414,12 +415,14 @@ export function ContractPDF({ contract, student }: Props) {
         {/* Signatures */}
         <View style={s.signaturesRow} wrap={false}>
           <View style={s.sigBox}>
-            {isSigned && signedAt ? (
+            {clientSignatureImage ? (
+              createElement(Image, { src: clientSignatureImage, style: s.sigImage })
+            ) : isSigned && signedAt ? (
               <View style={s.signedStamp}>
                 <Text style={s.signedStampText}>✓ Signed</Text>
               </View>
             ) : null}
-            <View style={[s.sigLine, { marginTop: isSigned ? 24 : 0 }]} />
+            <View style={[s.sigLine, { marginTop: (clientSignatureImage || (isSigned && signedAt)) ? 8 : 0 }]} />
             <Text style={s.sigLabel}>Client</Text>
             <Text style={s.sigName}>{clientName.toUpperCase()}</Text>
             <Text style={s.sigRole}>

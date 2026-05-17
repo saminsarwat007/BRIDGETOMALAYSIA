@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { ReceiptUploadSheet } from "./receipt-upload-sheet";
 import { DocumentUploadSheet } from "./document-upload-sheet";
+import { TypeSignature } from "@/components/type-signature";
 import { REQUIRED_DOCUMENTS } from "@/lib/documents";
 
 interface DocumentRow {
@@ -278,6 +279,7 @@ export function TrackingView({ payload, passport, documents }: Props) {
                 key={c.id}
                 contract={c}
                 passport={passport}
+                studentName={student.full_name}
               />
             ))}
           </div>
@@ -467,24 +469,25 @@ function StageRow({ index, label, state, history }: StageRowProps) {
 function ContractCard({
   contract,
   passport,
+  studentName,
 }: {
   contract: TrackingPayload["contracts"][number];
   passport: string;
+  studentName: string;
 }) {
   const [signing, setSigning] = useState(false);
   const [signed, setSigned] = useState(contract.signed);
   const [signedAt, setSignedAt] = useState(contract.signed_at);
+  const [showModal, setShowModal] = useState(false);
 
-  async function handleSign() {
-    if (signed) return;
-    if (!confirm("By clicking OK, you agree to the terms in this contract. This is a legally binding digital signature.")) return;
-
+  async function handleSign(signatureImage: string) {
+    setShowModal(false);
     setSigning(true);
     try {
       const res = await fetch("/api/public/sign-contract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ passport, contract_id: contract.id }),
+        body: JSON.stringify({ passport, contract_id: contract.id, signature_image: signatureImage }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -534,7 +537,7 @@ function ContractCard({
           </a>
           {!signed && (
             <button
-              onClick={handleSign}
+              onClick={() => setShowModal(true)}
               disabled={signing}
               className="inline-flex items-center gap-1.5 rounded-full bg-brand-ink px-4 py-2 text-xs font-semibold text-brand-paper hover:bg-brand-bridge transition disabled:opacity-50"
             >
@@ -548,12 +551,21 @@ function ContractCard({
         </div>
       </div>
 
-      {!signed && (
+      {!signed && !showModal && (
         <p className="mt-3 text-xs text-brand-muted leading-relaxed">
           Please review the contract PDF carefully before signing. By clicking "Sign contract", you
-          agree to all terms and conditions. Your IP address and timestamp will be recorded as a
-          digital signature.
+          agree to all terms and conditions. Your IP address and timestamp will be recorded.
         </p>
+      )}
+
+      {showModal && (
+        <div className="mt-4 rounded-xl border border-brand-stone bg-brand-cream/40 p-5">
+          <TypeSignature
+            defaultName={studentName}
+            onSave={handleSign}
+            onCancel={() => setShowModal(false)}
+          />
+        </div>
       )}
     </article>
   );
