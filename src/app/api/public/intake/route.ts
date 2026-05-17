@@ -249,6 +249,15 @@ export async function POST(request: Request) {
               const msg = (e as Error)?.message ?? "Upload failed";
               console.error("intake document upload failed", key, e);
               uploadSummary.push({ label, status: "failed", error: msg });
+              // Still create a pending DB row so the admin can see it and request re-upload
+              try {
+                await supabase.from("documents").insert({
+                  student_id: studentRow.id,
+                  doc_type: label,
+                  status: "pending",
+                  drive_link: null,
+                });
+              } catch { /* ignore duplicate errors */ }
             }
           }
 
@@ -296,18 +305,20 @@ export async function POST(request: Request) {
           console.error("intake drive folder creation failed", folderErr);
           for (const { key } of docFiles) {
             const def = findDocument(key);
-            uploadSummary.push({
-              label: def?.label ?? key,
-              status: "failed",
-              error: "Couldn't create Drive folder",
-            });
+            const label = def?.label ?? key;
+            uploadSummary.push({ label, status: "failed", error: "Couldn't create Drive folder" });
+            // Save pending row so admin can see documents were submitted
+            try {
+              await supabase.from("documents").insert({
+                student_id: studentRow.id,
+                doc_type: label,
+                status: "pending",
+                drive_link: null,
+              });
+            } catch { /* ignore */ }
           }
           for (const f of extraFiles) {
-            uploadSummary.push({
-              label: f.name,
-              status: "failed",
-              error: "Couldn't create Drive folder",
-            });
+            uploadSummary.push({ label: f.name, status: "failed", error: "Couldn't create Drive folder" });
           }
         }
       }

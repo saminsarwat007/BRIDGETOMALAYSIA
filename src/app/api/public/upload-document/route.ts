@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     const { data: student } = await supabase
       .from("students")
       .select(
-        "id, full_name, drive_folder_id, drive_folder_url, upload_enabled"
+        "id, full_name, university, intake, drive_folder_id, drive_folder_url, upload_enabled"
       )
       .eq("passport_no", passport)
       .maybeSingle();
@@ -52,17 +52,42 @@ export async function POST(request: Request) {
       );
     }
 
-    const folderId =
+    let folderId =
       student.drive_folder_id ?? extractDriveFolderId(student.drive_folder_url);
+
+    // Auto-create the student's Drive folder if it doesn't exist yet
     if (!folderId) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            "Drive folder not set yet for your application. Please contact our team on WhatsApp.",
-        },
-        { status: 400 }
-      );
+      const parentId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID?.trim();
+      if (!parentId) {
+        return NextResponse.json(
+          { ok: false, error: "Drive is not configured yet. Please contact our team on WhatsApp." },
+          { status: 503 }
+        );
+      }
+      try {
+        // Build folder name: "Full Name — University (Intake)"
+        const uniShort = (() => {
+          if (!student.university) return null;
+          const m = (student.university as string).match(/\(([A-Z]{2,8})\)/);
+          return m ? m[1] : (student.university as string).split(" ").slice(0, 2).join(" ");
+        })();
+        const intakePart = student.intake ? ` (${student.intake})` : "";
+        const folderName = uniShort
+          ? `${student.full_name} — ${uniShort}${intakePart}`
+          : `${student.full_name}${intakePart}`;
+        folderId = await ensureSubfolder(parentId, folderName);
+        // Save for next time
+        await supabase
+          .from("students")
+          .update({ drive_folder_id: folderId })
+          .eq("id", student.id);
+      } catch (err) {
+        console.error("auto-create drive folder failed", err);
+        return NextResponse.json(
+          { ok: false, error: "Couldn't set up your Drive folder. Please contact our team on WhatsApp." },
+          { status: 500 }
+        );
+      }
     }
 
     // Ensure the personal-documents subfolder exists
