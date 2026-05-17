@@ -7,41 +7,54 @@ let cachedClient: drive_v3.Drive | null = null;
 function getDriveClient(): drive_v3.Drive {
   if (cachedClient) return cachedClient;
 
-  let email: string;
-  let privateKey: string;
+  let auth: ReturnType<typeof google.auth.fromJSON> | InstanceType<typeof google.auth.JWT> | InstanceType<typeof google.auth.OAuth2>;
 
-  // Preferred: GOOGLE_SERVICE_ACCOUNT_JSON_B64 — base64 of the full service account JSON.
-  // This avoids all newline / quoting issues when pasting into Vercel.
-  // Generate with: node scripts/encode-service-account.mjs
-  const jsonB64 = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_B64;
-  if (jsonB64) {
-    try {
-      const decoded = JSON.parse(Buffer.from(jsonB64, "base64").toString("utf8"));
-      email = decoded.client_email;
-      privateKey = decoded.private_key;
-    } catch (e) {
-      throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON_B64 is not valid base64-encoded JSON.");
-    }
+  // ── Priority 1: OAuth2 refresh token (personal Google account, no Workspace needed)
+  // Generate with: node scripts/get-google-oauth-token.mjs
+  const oauthClientId = process.env.GOOGLE_OAUTH_CLIENT_ID?.trim();
+  const oauthClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim();
+  const oauthRefreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN?.trim();
+
+  if (oauthClientId && oauthClientSecret && oauthRefreshToken) {
+    const oauth2 = new google.auth.OAuth2(oauthClientId, oauthClientSecret);
+    oauth2.setCredentials({ refresh_token: oauthRefreshToken });
+    auth = oauth2;
   } else {
-    // Fallback: separate email + key env vars
-    const rawEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-    const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-    if (!rawEmail || !rawKey) {
-      throw new Error(
-        "Google service account credentials missing. Set GOOGLE_SERVICE_ACCOUNT_JSON_B64 " +
-        "(recommended) or GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_SERVICE_ACCOUNT_KEY."
-      );
-    }
-    email = rawEmail;
-    // Support both real newlines and escaped \n sequences
-    privateKey = rawKey.replace(/\\n/g, "\n");
-  }
+    // ── Priority 2: Service account JSON base64 (avoids Vercel newline issues)
+    // Generate with: node scripts/encode-service-account.mjs
+    let email: string;
+    let privateKey: string;
 
-  const auth = new google.auth.JWT({
-    email,
-    key: privateKey,
-    scopes: ["https://www.googleapis.com/auth/drive"],
-  });
+    const jsonB64 = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_B64;
+    if (jsonB64) {
+      try {
+        const decoded = JSON.parse(Buffer.from(jsonB64, "base64").toString("utf8"));
+        email = decoded.client_email;
+        privateKey = decoded.private_key;
+      } catch {
+        throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON_B64 is not valid base64-encoded JSON.");
+      }
+    } else {
+      // ── Priority 3: Separate email + key env vars (original fallback)
+      const rawEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+      const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+      if (!rawEmail || !rawKey) {
+        throw new Error(
+          "No Google Drive credentials found. Set GOOGLE_OAUTH_CLIENT_ID + " +
+          "GOOGLE_OAUTH_CLIENT_SECRET + GOOGLE_OAUTH_REFRESH_TOKEN (recommended for " +
+          "personal Drive), or GOOGLE_SERVICE_ACCOUNT_JSON_B64 (for Workspace Shared Drives)."
+        );
+      }
+      email = rawEmail;
+      privateKey = rawKey.replace(/\\n/g, "\n");
+    }
+
+    auth = new google.auth.JWT({
+      email,
+      key: privateKey,
+      scopes: ["https://www.googleapis.com/auth/drive"],
+    });
+  }
 
   cachedClient = google.drive({ version: "v3", auth });
   return cachedClient;
