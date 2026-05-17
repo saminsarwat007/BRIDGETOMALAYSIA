@@ -148,10 +148,18 @@ export async function updateInvoiceAction(
   if (input.field_values !== undefined) patch.field_values = input.field_values;
   if (input.status !== undefined) patch.status = input.status;
 
+  // fetch student_id so we can revalidate the student page
+  const { data: inv } = await supabase
+    .from("invoices")
+    .select("student_id")
+    .eq("id", id)
+    .single();
+
   const { error } = await supabase.from("invoices").update(patch).eq("id", id);
   if (error) throw new Error(error.message);
 
   revalidatePath("/admin/invoices");
+  if (inv?.student_id) revalidatePath(`/admin/students/${inv.student_id}`);
   return { ok: true };
 }
 
