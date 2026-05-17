@@ -90,6 +90,7 @@ create table if not exists public.students (
   referred_by_name text,
   referred_by_phone text,
   upload_enabled boolean not null default true,
+  whatsapp_group_url text,
   agency_referred_at timestamptz,
   agency_referred_to text,
   agency_referred_key text,
@@ -98,6 +99,7 @@ create table if not exists public.students (
 );
 
 -- Idempotent column adds for existing deployments
+alter table public.students add column if not exists whatsapp_group_url text;
 alter table public.students add column if not exists agency_referred_at timestamptz;
 alter table public.students add column if not exists agency_referred_to text;
 alter table public.students add column if not exists agency_referred_key text;
@@ -140,11 +142,17 @@ create table if not exists public.contracts (
   contract_number text unique not null,
   field_values jsonb not null default '{}'::jsonb,
   signed boolean not null default false,
+  signed_at timestamptz,
+  signed_ip text,
   drive_file_id text,
   drive_link text,
   generated_at timestamptz not null default now(),
   notes text
 );
+
+-- Idempotent column adds for contracts
+alter table public.contracts add column if not exists signed_at timestamptz;
+alter table public.contracts add column if not exists signed_ip text;
 
 create index if not exists contracts_student_idx on public.contracts (student_id);
 
@@ -274,13 +282,16 @@ create table if not exists public.commissions (
   id uuid primary key default uuid_generate_v4(),
   student_id uuid references public.students(id) on delete set null,
   university text not null,
-  amount numeric(12,2) not null,
-  currency text default 'MYR',
-  company_account_key text,
+  amount numeric not null,
+  currency money_currency not null default 'MYR',
+  company_account_key text references public.company_accounts(key),
   received_date date,
   notes text,
   created_at timestamptz not null default now()
 );
+
+-- Idempotent column add for commissions
+alter table public.commissions add column if not exists company_account_key text references public.company_accounts(key);
 
 create index if not exists commissions_student_idx on public.commissions (student_id);
 
@@ -410,12 +421,14 @@ declare
   v_student public.students;
   v_invoices jsonb;
   v_history jsonb;
+  v_contracts jsonb;
 begin
   select * into v_student from public.students where passport_no = p_passport;
   if v_student.id is null then
     return null;
   end if;
 
+  -- Invoices with total_paid computed from approved payments
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', i.id,
     'invoice_number', i.invoice_number,
@@ -424,7 +437,12 @@ begin
     'currency', i.currency,
     'status', i.status,
     'due_date', i.due_date,
-    'created_at', i.created_at
+    'created_at', i.created_at,
+    'total_paid', coalesce((
+      select sum(p.amount_received)
+      from public.payments p
+      where p.invoice_id = i.id and p.status = 'approved'
+    ), 0)
   ) order by i.created_at desc), '[]'::jsonb)
   into v_invoices
   from public.invoices i
@@ -443,6 +461,18 @@ begin
   from public.stage_history h
   where h.student_id = v_student.id;
 
+  -- Contracts
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', c.id,
+    'contract_number', c.contract_number,
+    'signed', c.signed,
+    'signed_at', c.signed_at,
+    'generated_at', c.generated_at
+  ) order by c.generated_at desc), '[]'::jsonb)
+  into v_contracts
+  from public.contracts c
+  where c.student_id = v_student.id;
+
   return jsonb_build_object(
     'student', jsonb_build_object(
       'id', v_student.id,
@@ -451,10 +481,12 @@ begin
       'university', v_student.university,
       'campus', v_student.campus,
       'intake', v_student.intake,
-      'upload_enabled', v_student.upload_enabled
+      'upload_enabled', v_student.upload_enabled,
+      'whatsapp_group_url', v_student.whatsapp_group_url
     ),
     'invoices', v_invoices,
-    'stage_history', v_history
+    'stage_history', v_history,
+    'contracts', v_contracts
   );
 end;
 $$;
