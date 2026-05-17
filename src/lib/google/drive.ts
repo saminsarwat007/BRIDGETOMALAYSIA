@@ -7,16 +7,35 @@ let cachedClient: drive_v3.Drive | null = null;
 function getDriveClient(): drive_v3.Drive {
   if (cachedClient) return cachedClient;
 
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  if (!email || !rawKey) {
-    throw new Error(
-      "Google service account credentials missing. Set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_SERVICE_ACCOUNT_KEY."
-    );
-  }
+  let email: string;
+  let privateKey: string;
 
-  // Support both raw newlines and escaped \n
-  const privateKey = rawKey.replace(/\\n/g, "\n");
+  // Preferred: GOOGLE_SERVICE_ACCOUNT_JSON_B64 — base64 of the full service account JSON.
+  // This avoids all newline / quoting issues when pasting into Vercel.
+  // Generate with: node scripts/encode-service-account.mjs
+  const jsonB64 = process.env.GOOGLE_SERVICE_ACCOUNT_JSON_B64;
+  if (jsonB64) {
+    try {
+      const decoded = JSON.parse(Buffer.from(jsonB64, "base64").toString("utf8"));
+      email = decoded.client_email;
+      privateKey = decoded.private_key;
+    } catch (e) {
+      throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON_B64 is not valid base64-encoded JSON.");
+    }
+  } else {
+    // Fallback: separate email + key env vars
+    const rawEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+    const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+    if (!rawEmail || !rawKey) {
+      throw new Error(
+        "Google service account credentials missing. Set GOOGLE_SERVICE_ACCOUNT_JSON_B64 " +
+        "(recommended) or GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_SERVICE_ACCOUNT_KEY."
+      );
+    }
+    email = rawEmail;
+    // Support both real newlines and escaped \n sequences
+    privateKey = rawKey.replace(/\\n/g, "\n");
+  }
 
   const auth = new google.auth.JWT({
     email,
