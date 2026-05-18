@@ -32,7 +32,7 @@ const Schema = z.object({
 });
 
 const empty = (v: string | undefined) => (v && v.trim() ? v.trim() : null);
-const MAX_BYTES = 25 * 1024 * 1024;
+const MAX_BYTES = 4 * 1024 * 1024; // 4 MB — Vercel serverless hard limit is 4.5 MB
 
 export async function POST(request: Request) {
   try {

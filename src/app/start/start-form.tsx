@@ -21,6 +21,33 @@ import type { PassportData } from "@/lib/ai/gemini";
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
+/** Compress an image File to JPEG at max 1400px / 75% quality. PDFs pass through unchanged. */
+async function compressFile(file: File): Promise<File> {
+  if (!file.type.startsWith("image/")) return file;
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 1400;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        if (width > height) { height = Math.round((height * MAX) / width); width = MAX; }
+        else { width = Math.round((width * MAX) / height); height = MAX; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => resolve(blob ? new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" }) : file),
+        "image/jpeg", 0.75
+      );
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
 interface FormData {
   full_name: string;
   passport_no: string;
@@ -96,13 +123,19 @@ export function StartForm() {
       const fd = new window.FormData();
       Object.entries(data).forEach(([k, v]) => fd.append(k, v));
 
-      // Documents: each indexed by its canonical key
-      Object.entries(docs).forEach(([k, file]) => {
-        if (file) fd.append(`document__${k}`, file, file.name);
-      });
+      // Documents: compress images before upload to stay under Vercel's 4.5 MB body limit
+      for (const [k, file] of Object.entries(docs)) {
+        if (file) {
+          const compressed = await compressFile(file);
+          fd.append(`document__${k}`, compressed, compressed.name);
+        }
+      }
 
-      // Extra attachments: appended as repeated `attachment` fields
-      extras.forEach((f) => fd.append("attachment", f, f.name));
+      // Extra attachments: compress images too
+      for (const f of extras) {
+        const compressed = await compressFile(f);
+        fd.append("attachment", compressed, compressed.name);
+      }
 
       // Turnstile token — server falls back to dev-bypass if no secret is set
       if (captchaToken) fd.append("cf-turnstile-response", captchaToken);
